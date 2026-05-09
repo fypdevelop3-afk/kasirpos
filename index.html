@@ -76,6 +76,7 @@
       const [paymentMethods, setPaymentMethods] = useState(() => loadData('pos_payments', initialPayments));
       const [selectedPayment, setSelectedPayment] = useState('cash');
       const [expenseInput, setExpenseInput] = useState({ desc: '', amount: '' });
+      const [cashierTab, setCashierTab] = useState('transaction'); // State baru untuk sub-menu kasir
 
       // --- AUTO-SAVE ---
       useEffect(() => localStorage.setItem('pos_products', JSON.stringify(products)), [products]);
@@ -197,6 +198,7 @@
           setModalAwal(0);
           setExpenses([]);
           setCart([]);
+          setCashierTab('transaction');
           setView('login');
         }
       };
@@ -338,121 +340,141 @@
             </div>
 
             <div className="w-full md:w-96 bg-white border-l shadow-lg flex flex-col h-screen">
-              <div className="p-4 border-b bg-gray-50">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center">
-                  <Icons.ShoppingCart className="mr-2" size={24} /> Pesanan Saat Ini
-                </h2>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4">
-                {cart.length === 0 ? (
-                  <p className="text-center text-gray-400 mt-10">Belum ada pesanan</p>
-                ) : (
-                  cart.map(item => (
-                    <div key={item.id} className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-xl border">
-                      <div>
-                        <h4 className="font-bold text-sm">{item.name}</h4>
-                        <p className="text-blue-600 text-sm font-semibold">Rp {(item.price * item.qty).toLocaleString()}</p>
-                      </div>
-                      <div className="flex items-center bg-white rounded-lg border shadow-sm">
-                        <button onClick={() => removeFromCart(item.id)} className="p-2 text-gray-500 active:bg-gray-100"><Icons.Minus size={16} /></button>
-                        <span className="px-3 font-bold">{item.qty}</span>
-                        <button onClick={() => addToCart(item)} className="p-2 text-blue-600 active:bg-gray-100"><Icons.Plus size={16} /></button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="p-4 border-t bg-white">
-                <div className="mb-3">
-                  <p className="text-sm font-semibold text-gray-600 mb-2">Metode Pembayaran:</p>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {paymentMethods.filter(pm => pm.active).map(pm => (
-                      <button
-                        key={pm.id}
-                        onClick={() => setSelectedPayment(pm.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all whitespace-nowrap ${selectedPayment === pm.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                      >
-                        {pm.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex justify-between mb-4">
-                  <span className="text-gray-500 font-semibold">Total Tagihan</span>
-                  <span className="text-2xl font-bold text-gray-800">Rp {totalCart.toLocaleString()}</span>
-                </div>
-                <button 
-                  onClick={processCheckout}
-                  disabled={cart.length === 0}
-                  className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-md transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300'}`}
+              {/* Tab Navigasi Kasir */}
+              <div className="flex border-b bg-gray-50 shrink-0">
+                <button
+                  onClick={() => setCashierTab('transaction')}
+                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center transition-colors ${cashierTab === 'transaction' ? 'bg-white border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
                 >
-                  Bayar Sekarang
+                  <Icons.ShoppingCart className="mr-2" size={18} /> Transaksi
+                </button>
+                <button
+                  onClick={() => setCashierTab('shift')}
+                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center transition-colors ${cashierTab === 'shift' ? 'bg-white border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <Icons.Wallet className="mr-2" size={18} /> Shift & Kas
                 </button>
               </div>
 
-              <div className="p-4 bg-gray-50 border-t overflow-y-auto max-h-64">
-                <h3 className="text-sm font-bold text-gray-800 mb-3 border-b pb-2">Ringkasan Shift (Sales Sementara)</h3>
-                
-                <div className="space-y-2 mb-4 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Modal Awal Kasir:</span>
-                    <div className="flex items-center">
-                      <span className="mr-1">Rp</span>
-                      <input 
-                        type="number" 
-                        value={modalAwal || ''} 
-                        onChange={(e) => setModalAwal(Number(e.target.value))}
-                        className="w-24 border p-1 rounded text-right bg-white"
-                        placeholder="0"
-                      />
+              {/* Tampilan Konten Berdasarkan Tab yang Dipilih */}
+              {cashierTab === 'transaction' ? (
+                <>
+                  {/* --- TAB TRANSAKSI --- */}
+                  <div className="flex-1 overflow-y-auto p-4">
+                    {cart.length === 0 ? (
+                      <p className="text-center text-gray-400 mt-10">Belum ada pesanan</p>
+                    ) : (
+                      cart.map(item => (
+                        <div key={item.id} className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-xl border">
+                          <div>
+                            <h4 className="font-bold text-sm">{item.name}</h4>
+                            <p className="text-blue-600 text-sm font-semibold">Rp {(item.price * item.qty).toLocaleString()}</p>
+                          </div>
+                          <div className="flex items-center bg-white rounded-lg border shadow-sm">
+                            <button onClick={() => removeFromCart(item.id)} className="p-2 text-gray-500 active:bg-gray-100"><Icons.Minus size={16} /></button>
+                            <span className="px-3 font-bold">{item.qty}</span>
+                            <button onClick={() => addToCart(item)} className="p-2 text-blue-600 active:bg-gray-100"><Icons.Plus size={16} /></button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="p-4 border-t bg-white shrink-0">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-gray-600 mb-2">Metode Pembayaran:</p>
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {paymentMethods.filter(pm => pm.active).map(pm => (
+                          <button
+                            key={pm.id}
+                            onClick={() => setSelectedPayment(pm.id)}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all whitespace-nowrap ${selectedPayment === pm.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                          >
+                            {pm.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-between mb-4">
+                      <span className="text-gray-500 font-semibold">Total Tagihan</span>
+                      <span className="text-2xl font-bold text-gray-800">Rp {totalCart.toLocaleString()}</span>
+                    </div>
+                    <button 
+                      onClick={processCheckout}
+                      disabled={cart.length === 0}
+                      className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-md transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300'}`}
+                    >
+                      Bayar Sekarang
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* --- TAB SHIFT & PENGELUARAN --- */
+                <div className="flex-1 overflow-y-auto p-4 bg-gray-50 flex flex-col">
+                  <h3 className="text-sm font-bold text-gray-800 mb-3 border-b pb-2">Ringkasan Shift (Sales Sementara)</h3>
+                  
+                  <div className="space-y-2 mb-6 text-sm">
+                    <div className="flex justify-between items-center bg-white p-2 rounded-xl border shadow-sm mb-3">
+                      <span className="text-gray-600 font-semibold">Modal Awal Kasir:</span>
+                      <div className="flex items-center">
+                        <span className="mr-1 font-bold text-gray-500">Rp</span>
+                        <input 
+                          type="number" 
+                          value={modalAwal || ''} 
+                          onChange={(e) => setModalAwal(Number(e.target.value))}
+                          className="w-24 border-b-2 border-gray-200 p-1 text-right bg-transparent outline-none focus:border-blue-500 font-bold"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between px-1">
+                      <span className="text-gray-600">Penjualan Tunai:</span>
+                      <span className="font-semibold text-green-600">+ Rp {shiftSalesCash.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between px-1">
+                      <span className="text-gray-600">Penjualan Non-Tunai:</span>
+                      <span className="font-semibold text-blue-600">+ Rp {shiftSalesNonCash.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between px-1">
+                      <span className="text-gray-600">Total Pengeluaran:</span>
+                      <span className="font-semibold text-red-600">- Rp {shiftTotalPengeluaran.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between mt-2 pt-3 border-t-2 border-gray-200 font-bold px-1">
+                      <span className="text-gray-800 text-base">Estimasi Uang Laci:</span>
+                      <span className="text-gray-800 text-base">Rp {estimasiUangLaci.toLocaleString()}</span>
                     </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Penjualan Tunai:</span>
-                    <span className="font-semibold text-green-600">+ Rp {shiftSalesCash.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Penjualan Non-Tunai:</span>
-                    <span className="font-semibold text-blue-600">+ Rp {shiftSalesNonCash.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Pengeluaran:</span>
-                    <span className="font-semibold text-red-600">- Rp {shiftTotalPengeluaran.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t font-bold">
-                    <span className="text-gray-800">Estimasi Uang Laci:</span>
-                    <span className="text-gray-800">Rp {estimasiUangLaci.toLocaleString()}</span>
+
+                  <h3 className="text-sm font-bold text-gray-700 mb-2 mt-4">Input Pengeluaran Kasir</h3>
+                  <form onSubmit={handleAddExpense} className="flex gap-2 mb-6">
+                    <input 
+                      type="text" 
+                      placeholder="Misal: Beli gas" 
+                      className="flex-1 border p-3 rounded-xl text-sm bg-white shadow-sm outline-none focus:border-orange-500"
+                      value={expenseInput.desc}
+                      onChange={e => setExpenseInput({...expenseInput, desc: e.target.value})}
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="Rp" 
+                      className="w-28 border p-3 rounded-xl text-sm bg-white shadow-sm outline-none focus:border-orange-500"
+                      value={expenseInput.amount}
+                      onChange={e => setExpenseInput({...expenseInput, amount: e.target.value})}
+                    />
+                    <button type="submit" className="bg-orange-500 text-white px-4 rounded-xl hover:bg-orange-600 shadow-sm active:scale-95 transition-transform"><Icons.Plus size={20}/></button>
+                  </form>
+
+                  <div className="mt-auto pt-4 border-t">
+                    <button 
+                      onClick={closeShiftWA}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center shadow-md active:scale-95 transition-all"
+                    >
+                      <Icons.Send size={18} className="mr-2" /> Tutup Shift (Lapor WA)
+                    </button>
+                    <p className="text-xs text-center text-gray-400 mt-3">Menutup shift akan mereset laci ke Rp 0</p>
                   </div>
                 </div>
-
-                <h3 className="text-sm font-bold text-gray-700 mb-2">Input Pengeluaran</h3>
-                <form onSubmit={handleAddExpense} className="flex gap-2 mb-4">
-                  <input 
-                    type="text" 
-                    placeholder="Misal: Es batu" 
-                    className="flex-1 border p-2 rounded-lg text-sm bg-white"
-                    value={expenseInput.desc}
-                    onChange={e => setExpenseInput({...expenseInput, desc: e.target.value})}
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="Rp" 
-                    className="w-24 border p-2 rounded-lg text-sm bg-white"
-                    value={expenseInput.amount}
-                    onChange={e => setExpenseInput({...expenseInput, amount: e.target.value})}
-                  />
-                  <button type="submit" className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"><Icons.Plus size={20}/></button>
-                </form>
-
-                <button 
-                  onClick={closeShiftWA}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center shadow-md active:scale-95 mt-2"
-                >
-                  <Icons.Send size={18} className="mr-2" /> Tutup Shift (Lapor WA)
-                </button>
-              </div>
+              )}
             </div>
           </div>
         );
