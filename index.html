@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kasir Pintar</title>
+  
+  <!-- Memuat Tailwind CSS untuk desain (Tanpa Install) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Memuat React (Tanpa Install) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Memuat Babel agar kode React bisa dibaca browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <!-- Di sinilah aplikasi akan dimuat -->
+  <div id="root"></div>
+
+  <!-- KODE APLIKASI KITA -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- ICONS (Ikon-ikon yang sudah disesuaikan untuk HTML) ---
+    const Icons = {
+      ShoppingCart: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>,
+      LayoutDashboard: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>,
+      Package: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>,
+      Receipt: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1Z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17.5v-11"></path></svg>,
+      LogOut: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
+      Plus: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+      Minus: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+      Send: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
+      Wallet: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>,
+      TrendingUp: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>,
+      Lock: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+    };
+
+    const App = () => {
+      // --- HELPER LOCAL STORAGE ---
+      const loadData = (key, defaultData) => {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : defaultData;
+      };
+
+      // --- STATE MANAGEMENT ---
+      const [view, setView] = useState('login');
+      
+      const PIN_KASIR = '1234';
+      const PIN_ADMIN = '8888';
+      
+      const [targetRole, setTargetRole] = useState(null);
+      const [pinInput, setPinInput] = useState('');
+      const [errorPin, setErrorPin] = useState(false);
+
+      const initialProducts = [
+        { id: 1, name: 'Kopi Susu Gula Aren', price: 15000, cost: 8000, stock: 50 },
+        { id: 2, name: 'Matcha Latte', price: 18000, cost: 10000, stock: 30 },
+        { id: 3, name: 'Roti Bakar Coklat', price: 12000, cost: 6000, stock: 20 },
+      ];
+
+      const [products, setProducts] = useState(() => loadData('pos_products', initialProducts));
+      const [cart, setCart] = useState(() => loadData('pos_cart', []));
+      const [transactions, setTransactions] = useState(() => loadData('pos_tx', []));
+      const [expenses, setExpenses] = useState(() => loadData('pos_expenses', []));
+      const [profitShareAdminPct, setProfitShareAdminPct] = useState(() => loadData('pos_profit', 60)); 
+      const [modalAwal, setModalAwal] = useState(() => loadData('pos_modal', 0));
+      
+      const initialPayments = [
+        { id: 'cash', name: 'Tunai', active: true },
+        { id: 'qris', name: 'QRIS', active: true },
+        { id: 'transfer', name: 'Transfer Bank', active: false }
+      ];
+      const [paymentMethods, setPaymentMethods] = useState(() => loadData('pos_payments', initialPayments));
+      const [selectedPayment, setSelectedPayment] = useState('cash');
+      const [expenseInput, setExpenseInput] = useState({ desc: '', amount: '' });
+
+      // --- AUTO-SAVE ---
+      useEffect(() => localStorage.setItem('pos_products', JSON.stringify(products)), [products]);
+      useEffect(() => localStorage.setItem('pos_cart', JSON.stringify(cart)), [cart]);
+      useEffect(() => localStorage.setItem('pos_tx', JSON.stringify(transactions)), [transactions]);
+      useEffect(() => localStorage.setItem('pos_expenses', JSON.stringify(expenses)), [expenses]);
+      useEffect(() => localStorage.setItem('pos_modal', JSON.stringify(modalAwal)), [modalAwal]);
+      useEffect(() => localStorage.setItem('pos_payments', JSON.stringify(paymentMethods)), [paymentMethods]);
+      useEffect(() => localStorage.setItem('pos_profit', JSON.stringify(profitShareAdminPct)), [profitShareAdminPct]);
+
+      // --- LOGIC PIN ---
+      const handleLoginClick = (role) => {
+        setTargetRole(role);
+        setPinInput('');
+        setErrorPin(false);
+        setView('pin');
+      };
+
+      const handlePinSubmit = () => {
+        if (targetRole === 'cashier' && pinInput === PIN_KASIR) {
+          setView('cashier');
+        } else if (targetRole === 'admin' && pinInput === PIN_ADMIN) {
+          setView('admin');
+        } else {
+          setErrorPin(true);
+          setPinInput('');
+        }
+      };
+
+      // --- LOGIC KASIR ---
+      const addToCart = (product) => {
+        if (product.stock <= 0) {
+          alert('Stok habis!');
+          return;
+        }
+        const existing = cart.find(item => item.id === product.id);
+        if (existing) {
+          if (existing.qty >= product.stock) return;
+          setCart(cart.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item));
+        } else {
+          setCart([...cart, { ...product, qty: 1 }]);
+        }
+      };
+
+      const removeFromCart = (productId) => {
+        const existing = cart.find(item => item.id === productId);
+        if (existing.qty === 1) {
+          setCart(cart.filter(item => item.id !== productId));
+        } else {
+          setCart(cart.map(item => item.id === productId ? { ...item, qty: item.qty - 1 } : item));
+        }
+      };
+
+      const totalCart = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+      const processCheckout = () => {
+        if (cart.length === 0) return;
+
+        const updatedProducts = products.map(p => {
+          const cartItem = cart.find(c => c.id === p.id);
+          return cartItem ? { ...p, stock: p.stock - cartItem.qty } : p;
+        });
+        setProducts(updatedProducts);
+
+        const newTx = {
+          id: Date.now(),
+          date: new Date().toLocaleString(),
+          items: cart,
+          total: totalCart,
+          profit: cart.reduce((sum, item) => sum + ((item.price - item.cost) * item.qty), 0),
+          paymentMethod: selectedPayment
+        };
+        
+        setTransactions([newTx, ...transactions]);
+        setCart([]);
+      };
+
+      const handleAddExpense = (e) => {
+        e.preventDefault();
+        if (!expenseInput.desc || !expenseInput.amount) return;
+        
+        setExpenses([{
+          id: Date.now(),
+          date: new Date().toLocaleString(),
+          desc: expenseInput.desc,
+          amount: parseInt(expenseInput.amount)
+        }, ...expenses]);
+        
+        setExpenseInput({ desc: '', amount: '' });
+      };
+
+      const shiftSalesCash = transactions.filter(tx => tx.paymentMethod === 'cash').reduce((sum, tx) => sum + tx.total, 0);
+      const shiftSalesNonCash = transactions.filter(tx => tx.paymentMethod !== 'cash').reduce((sum, tx) => sum + tx.total, 0);
+      const shiftTotalSales = shiftSalesCash + shiftSalesNonCash;
+      const shiftTotalPengeluaran = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+      const estimasiUangLaci = modalAwal + shiftSalesCash - shiftTotalPengeluaran;
+
+      const closeShiftWA = () => {
+        let text = `*LAPORAN TUTUP SHIFT*%0A`;
+        text += `Tanggal: ${new Date().toLocaleDateString()}%0A%0A`;
+        text += `*RINGKASAN PENJUALAN*%0A`;
+        text += `Total Penjualan: Rp ${shiftTotalSales.toLocaleString()}%0A`;
+        text += `- Tunai: Rp ${shiftSalesCash.toLocaleString()}%0A`;
+        text += `- Non-Tunai (QRIS/dll): Rp ${shiftSalesNonCash.toLocaleString()}%0A%0A`;
+        text += `*ARUS KAS LACI*%0A`;
+        text += `Modal Awal: Rp ${modalAwal.toLocaleString()}%0A`;
+        text += `Total Pengeluaran: Rp ${shiftTotalPengeluaran.toLocaleString()}%0A`;
+        text += `*Estimasi Kas Fisik (Laci): Rp ${estimasiUangLaci.toLocaleString()}*%0A%0A`;
+        text += `*DETAIL PENGELUARAN*%0A`;
+        if (expenses.length === 0) text += `- Nihil%0A`;
+        expenses.forEach(exp => {
+          text += `- ${exp.desc}: Rp ${exp.amount.toLocaleString()}%0A`;
+        });
+        
+        const waUrl = `https://wa.me/?text=${text}`;
+        window.open(waUrl, '_blank');
+
+        if(window.confirm("Apakah Anda yakin ingin menutup shift? Modal awal dan riwayat pengeluaran hari ini akan di-reset.")){
+          setModalAwal(0);
+          setExpenses([]);
+          setCart([]);
+          setView('login');
+        }
+      };
+
+      // --- LOGIC ADMIN ---
+      const togglePaymentMethod = (id) => {
+        setPaymentMethods(paymentMethods.map(pm => pm.id === id ? { ...pm, active: !pm.active } : pm));
+      };
+
+      const totalRevenue = transactions.reduce((sum, tx) => sum + tx.total, 0);
+      const totalProfit = transactions.reduce((sum, tx) => sum + tx.profit, 0);
+      const adminShare = (totalProfit * profitShareAdminPct) / 100;
+      const staffShare = totalProfit - adminShare;
+
+      // --- TAMPILAN ---
+      if (view === 'login') {
+        return (
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md text-center">
+              <div className="flex justify-center mb-6">
+                <div className="bg-blue-600 p-4 rounded-full text-white">
+                  <Icons.ShoppingCart size={40} />
+                </div>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Kasir Pintar</h1>
+              <p className="text-gray-500 mb-8">Pilih peran Anda untuk masuk</p>
+              
+              <button 
+                onClick={() => handleLoginClick('cashier')}
+                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold mb-4 hover:bg-blue-700 active:scale-95 transition-all text-lg"
+              >
+                Masuk sebagai Kasir
+              </button>
+              
+              <button 
+                onClick={() => handleLoginClick('admin')}
+                className="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 active:scale-95 transition-all text-lg"
+              >
+                Masuk sebagai Admin
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'pin') {
+        return (
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
+              <div className="flex justify-center mb-4">
+                <div className={`p-4 rounded-full text-white ${targetRole === 'admin' ? 'bg-slate-800' : 'bg-blue-600'}`}>
+                  <Icons.Lock size={32} />
+                </div>
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 mb-1">
+                Masukkan PIN {targetRole === 'admin' ? 'Admin' : 'Kasir'}
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">Untuk keamanan aplikasi</p>
+
+              <div className="flex justify-center mb-6">
+                <input 
+                  type="password" 
+                  readOnly 
+                  value={pinInput}
+                  className={`w-full text-center text-3xl tracking-widest font-bold py-3 border-b-2 outline-none bg-transparent ${errorPin ? 'border-red-500 text-red-500' : 'border-gray-300'}`}
+                  placeholder="••••"
+                />
+              </div>
+              {errorPin && <p className="text-red-500 text-sm mb-4 font-semibold animate-bounce">PIN Salah! Coba lagi.</p>}
+
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                  <button 
+                    key={num}
+                    onClick={() => setPinInput(prev => (prev.length < 4 ? prev + num : prev))}
+                    className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-800 text-xl font-bold py-4 rounded-xl transition-all"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => setView('login')}
+                  className="bg-red-50 text-red-500 hover:bg-red-100 active:bg-red-200 text-sm font-bold py-4 rounded-xl transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={() => setPinInput(prev => prev.length < 4 ? prev + '0' : prev)}
+                  className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-800 text-xl font-bold py-4 rounded-xl transition-all"
+                >
+                  0
+                </button>
+                <button 
+                  onClick={() => setPinInput(prev => prev.slice(0, -1))}
+                  className="bg-orange-50 text-orange-500 hover:bg-orange-100 active:bg-orange-200 text-sm font-bold py-4 rounded-xl transition-all"
+                >
+                  Hapus
+                </button>
+              </div>
+
+              <button 
+                onClick={handlePinSubmit}
+                className={`w-full text-white py-4 rounded-xl font-bold transition-all text-lg ${targetRole === 'admin' ? 'bg-slate-800 hover:bg-slate-900' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                Masuk
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'cashier') {
+        return (
+          <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+            <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Menu Penjualan</h2>
+                <button onClick={() => setView('login')} className="flex items-center text-red-500 font-semibold p-2 bg-red-50 rounded-lg">
+                  <Icons.LogOut size={20} className="mr-2" /> Keluar
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                {products.map(p => (
+                  <div 
+                    key={p.id} 
+                    onClick={() => addToCart(p)}
+                    className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer active:scale-95 transition-transform ${p.stock > 0 ? 'border-transparent hover:border-blue-500' : 'border-red-200 opacity-60'}`}
+                  >
+                    <div className="bg-blue-50 w-12 h-12 rounded-lg flex items-center justify-center text-blue-600 mb-3">
+                      <Icons.Package size={24} />
+                    </div>
+                    <h3 className="font-bold text-gray-800 mb-1">{p.name}</h3>
+                    <p className="text-blue-600 font-bold mb-2">Rp {p.price.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">Stok: {p.stock}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="w-full md:w-96 bg-white border-l shadow-lg flex flex-col h-screen">
+              <div className="p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center">
+                  <Icons.ShoppingCart className="mr-2" size={24} /> Pesanan Saat Ini
+                </h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4">
+                {cart.length === 0 ? (
+                  <p className="text-center text-gray-400 mt-10">Belum ada pesanan</p>
+                ) : (
+                  cart.map(item => (
+                    <div key={item.id} className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-xl border">
+                      <div>
+                        <h4 className="font-bold text-sm">{item.name}</h4>
+                        <p className="text-blue-600 text-sm font-semibold">Rp {(item.price * item.qty).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center bg-white rounded-lg border shadow-sm">
+                        <button onClick={() => removeFromCart(item.id)} className="p-2 text-gray-500 active:bg-gray-100"><Icons.Minus size={16} /></button>
+                        <span className="px-3 font-bold">{item.qty}</span>
+                        <button onClick={() => addToCart(item)} className="p-2 text-blue-600 active:bg-gray-100"><Icons.Plus size={16} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="p-4 border-t bg-white">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-gray-600 mb-2">Metode Pembayaran:</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {paymentMethods.filter(pm => pm.active).map(pm => (
+                      <button
+                        key={pm.id}
+                        onClick={() => setSelectedPayment(pm.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all whitespace-nowrap ${selectedPayment === pm.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                      >
+                        {pm.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-between mb-4">
+                  <span className="text-gray-500 font-semibold">Total Tagihan</span>
+                  <span className="text-2xl font-bold text-gray-800">Rp {totalCart.toLocaleString()}</span>
+                </div>
+                <button 
+                  onClick={processCheckout}
+                  disabled={cart.length === 0}
+                  className={`w-full py-4 rounded-xl font-bold text-lg text-white shadow-md transition-all ${cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300'}`}
+                >
+                  Bayar Sekarang
+                </button>
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t overflow-y-auto max-h-64">
+                <h3 className="text-sm font-bold text-gray-800 mb-3 border-b pb-2">Ringkasan Shift (Sales Sementara)</h3>
+                
+                <div className="space-y-2 mb-4 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Modal Awal Kasir:</span>
+                    <div className="flex items-center">
+                      <span className="mr-1">Rp</span>
+                      <input 
+                        type="number" 
+                        value={modalAwal || ''} 
+                        onChange={(e) => setModalAwal(Number(e.target.value))}
+                        className="w-24 border p-1 rounded text-right bg-white"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Penjualan Tunai:</span>
+                    <span className="font-semibold text-green-600">+ Rp {shiftSalesCash.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Penjualan Non-Tunai:</span>
+                    <span className="font-semibold text-blue-600">+ Rp {shiftSalesNonCash.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Pengeluaran:</span>
+                    <span className="font-semibold text-red-600">- Rp {shiftTotalPengeluaran.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t font-bold">
+                    <span className="text-gray-800">Estimasi Uang Laci:</span>
+                    <span className="text-gray-800">Rp {estimasiUangLaci.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <h3 className="text-sm font-bold text-gray-700 mb-2">Input Pengeluaran</h3>
+                <form onSubmit={handleAddExpense} className="flex gap-2 mb-4">
+                  <input 
+                    type="text" 
+                    placeholder="Misal: Es batu" 
+                    className="flex-1 border p-2 rounded-lg text-sm bg-white"
+                    value={expenseInput.desc}
+                    onChange={e => setExpenseInput({...expenseInput, desc: e.target.value})}
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="Rp" 
+                    className="w-24 border p-2 rounded-lg text-sm bg-white"
+                    value={expenseInput.amount}
+                    onChange={e => setExpenseInput({...expenseInput, amount: e.target.value})}
+                  />
+                  <button type="submit" className="bg-orange-500 text-white p-2 rounded-lg hover:bg-orange-600"><Icons.Plus size={20}/></button>
+                </form>
+
+                <button 
+                  onClick={closeShiftWA}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center shadow-md active:scale-95 mt-2"
+                >
+                  <Icons.Send size={18} className="mr-2" /> Tutup Shift (Lapor WA)
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'admin') {
+        return (
+          <div className="min-h-screen bg-gray-100 flex flex-col">
+            <div className="bg-slate-800 text-white p-4 shadow-md flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center"><Icons.LayoutDashboard className="mr-2" size={24} /> Panel Admin</h2>
+              <button onClick={() => setView('login')} className="flex items-center text-slate-300 hover:text-white text-sm bg-slate-700 p-2 rounded-lg">
+                <Icons.LogOut size={16} className="mr-2" /> Keluar
+              </button>
+            </div>
+
+            <div className="p-4 md:p-6 max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              <div className="md:col-span-2 space-y-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Icons.TrendingUp className="mr-2 text-blue-500" size={24}/> Ringkasan Keuangan</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-blue-50 p-4 rounded-xl">
+                      <p className="text-sm text-gray-500 mb-1">Total Omzet</p>
+                      <p className="text-2xl font-bold text-blue-700">Rp {totalRevenue.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-xl">
+                      <p className="text-sm text-gray-500 mb-1">Keuntungan Kotor (Profit)</p>
+                      <p className="text-2xl font-bold text-green-700">Rp {totalProfit.toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-bold text-gray-700 mb-3 border-t pt-4">Sistem Bagi Hasil</h4>
+                  <div className="flex items-center gap-4 mb-4">
+                    <span className="text-sm">Jatah Admin: {profitShareAdminPct}%</span>
+                    <input 
+                      type="range" 
+                      min="0" max="100" 
+                      value={profitShareAdminPct}
+                      onChange={(e) => setProfitShareAdminPct(e.target.value)}
+                      className="flex-1"
+                    />
+                    <span className="text-sm">Jatah Kasir: {100 - profitShareAdminPct}%</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-100 p-3 rounded-lg border">
+                      <p className="text-xs text-gray-500">Hak Admin/Pemodal</p>
+                      <p className="font-bold text-gray-800">Rp {adminShare.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-slate-100 p-3 rounded-lg border">
+                      <p className="text-xs text-gray-500">Hak Kasir/Pekerja</p>
+                      <p className="font-bold text-gray-800">Rp {staffShare.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Icons.Wallet className="mr-2 text-purple-500" size={24}/> Pengaturan Pembayaran</h3>
+                  <p className="text-sm text-gray-500 mb-4">Aktifkan/nonaktifkan metode pembayaran untuk kasir.</p>
+                  <div className="space-y-3">
+                     {paymentMethods.map(pm => (
+                        <div key={pm.id} className="flex justify-between items-center border-b pb-2">
+                           <span className="font-semibold text-gray-700">{pm.name}</span>
+                           <button
+                             onClick={() => togglePaymentMethod(pm.id)}
+                             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${pm.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                           >
+                             {pm.active ? 'Status: Aktif' : 'Status: Nonaktif'}
+                           </button>
+                        </div>
+                     ))}
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Icons.Receipt className="mr-2 text-orange-500" size={24}/> Riwayat Pengeluaran Kasir</h3>
+                  {expenses.length === 0 ? <p className="text-gray-400 text-sm">Belum ada pengeluaran dicatat.</p> : (
+                    <ul className="divide-y">
+                      {expenses.map(exp => (
+                        <li key={exp.id} className="py-3 flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-gray-800">{exp.desc}</p>
+                            <p className="text-xs text-gray-400">{exp.date}</p>
+                          </div>
+                          <span className="font-bold text-orange-600">- Rp {exp.amount.toLocaleString()}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border h-full">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center"><Icons.Package className="mr-2 text-indigo-500" size={24}/> Pantau Stok Produk</h3>
+                  <div className="space-y-4">
+                    {products.map(p => (
+                      <div key={p.id} className="border-b pb-3">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-bold text-gray-700">{p.name}</span>
+                          <span className={`px-2 py-1 text-xs font-bold rounded-full ${p.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                            Stok: {p.stock}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Harga Jual: Rp {p.price / 1000}k</span>
+                          <span>Modal: Rp {p.cost / 1000}k</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button className="w-full mt-6 bg-indigo-100 text-indigo-700 font-bold py-3 rounded-xl hover:bg-indigo-200">
+                    + Tambah / Edit Produk
+                  </button>
+                  <p className="text-xs text-gray-400 mt-2 text-center">*Fitur edit stok akan diaktifkan di versi selanjutnya</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
