@@ -3,23 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kasir Pintar</title>
+  <title>Kasir Pintar Cloud</title>
   
-  <!-- Memuat Tailwind CSS untuk desain (Tanpa Install) -->
+  <!-- Memuat Tailwind CSS untuk desain -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Memuat React (Tanpa Install) -->
+  <!-- Memuat React -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Memuat Babel agar kode React bisa dibaca browser -->
+  <!-- Memuat Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- === MEMUAT FIREBASE SDK === -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 </head>
 <body class="bg-gray-100">
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
+
+    // === KONFIGURASI FIREBASE KAMU ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyA4sfcPXKEtKP9Jzqan8Sic8mkMfNwwE6Y",
+      authDomain: "kasir-fyp.firebaseapp.com",
+      projectId: "kasir-fyp",
+      storageBucket: "kasir-fyp.firebasestorage.app",
+      messagingSenderId: "433683520640",
+      appId: "1:433683520640:web:bb1c89ef605b690f639a65"
+    };
+
+    // Inisialisasi Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+    const storeRef = db.collection('kasir_data').doc('main_store');
 
     // --- ICONS ---
     const Icons = {
@@ -44,18 +65,12 @@
       Percent: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>,
       Layers: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>,
       Clock: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-      User: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
       Trash: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
     };
 
     const App = () => {
-      // --- HELPER LOCAL STORAGE ---
-      const loadData = (key, defaultData) => {
-        const saved = localStorage.getItem(key);
-        return saved ? JSON.parse(saved) : defaultData;
-      };
-
       // --- STATE MANAGEMENT ---
+      const [isDbLoaded, setIsDbLoaded] = useState(false); 
       const [view, setView] = useState('login'); 
       const PIN_KASIR = '1234';
       const PIN_ADMIN = '8888';
@@ -64,48 +79,37 @@
       const [pinInput, setPinInput] = useState('');
       const [errorPin, setErrorPin] = useState(false);
 
-      const initialProducts = [
-        { id: 1, name: 'Kopi Susu Gula Aren', price: 15000, cost: 8000, stock: 50, category: 'Minuman' },
-        { id: 2, name: 'Matcha Latte', price: 18000, cost: 10000, stock: 30, category: 'Minuman' },
-        { id: 3, name: 'Roti Bakar Coklat', price: 12000, cost: 6000, stock: 20, category: 'Makanan' },
-      ];
+      // Data Database
+      const [products, setProducts] = useState([]);
+      const [categories, setCategories] = useState([]); 
+      const [extras, setExtras] = useState([]);
+      const [discounts, setDiscounts] = useState([]);
+      const [transactions, setTransactions] = useState([]);
+      const [expenses, setExpenses] = useState([]);
+      const [adminExpenses, setAdminExpenses] = useState([]);
+      const [fixedCosts, setFixedCosts] = useState([]);
+      const [investors, setInvestors] = useState([]);
+      const [isShiftOpen, setIsShiftOpen] = useState(false);
+      const [modalAwal, setModalAwal] = useState(0);
+      const [cashierName, setCashierName] = useState('');
+      const [paymentMethods, setPaymentMethods] = useState([]);
+      
+      // Keranjang belanja tetap disimpan lokal HP agar tidak tabrakan antar kasir
+      const [cart, setCart] = useState(() => {
+        const saved = localStorage.getItem('pos_cart');
+        return saved ? JSON.parse(saved) : [];
+      });
+      useEffect(() => localStorage.setItem('pos_cart', JSON.stringify(cart)), [cart]);
 
-      const [products, setProducts] = useState(() => loadData('pos_products', initialProducts));
-      const [categories, setCategories] = useState(() => loadData('pos_categories', ['Minuman', 'Makanan', 'Snack', 'Umum'])); 
-      
-      // State Ekstra & Diskon
-      const [extras, setExtras] = useState(() => loadData('pos_extras', [{id: 1, name: 'Extra Susu', price: 3000}]));
-      const [discounts, setDiscounts] = useState(() => loadData('pos_discounts', [{id: 1, name: 'Diskon Karyawan', type: 'percentage', value: 10}]));
-
-      const [cart, setCart] = useState(() => loadData('pos_cart', []));
-      const [transactions, setTransactions] = useState(() => loadData('pos_tx', []));
-      const [expenses, setExpenses] = useState(() => loadData('pos_expenses', []));
-      const [adminExpenses, setAdminExpenses] = useState(() => loadData('pos_admin_expenses', []));
-      const [fixedCosts, setFixedCosts] = useState(() => loadData('pos_fixed_costs', []));
-      
-      const [investors, setInvestors] = useState(() => loadData('pos_investors', [{ id: 1, name: 'Investor Utama', sharePct: 60 }]));
-      
-      const [isShiftOpen, setIsShiftOpen] = useState(() => loadData('pos_shift_open', false));
-      const [modalAwal, setModalAwal] = useState(() => loadData('pos_modal', 0));
-      const [cashierName, setCashierName] = useState(() => loadData('pos_cashier_name', ''));
-      
-      const initialPayments = [
-        { id: 'cash', name: 'Tunai', active: true },
-        { id: 'qris', name: 'QRIS', active: true },
-        { id: 'transfer', name: 'Transfer Bank', active: false }
-      ];
-      const [paymentMethods, setPaymentMethods] = useState(() => loadData('pos_payments', initialPayments));
       const [selectedPayment, setSelectedPayment] = useState('cash');
       const [expenseInput, setExpenseInput] = useState({ desc: '', amount: '' });
       const [cashierTab, setCashierTab] = useState('transaction'); 
-
-      // Kasir: State Diskon Aktif
       const [activeDiscount, setActiveDiscount] = useState(null);
 
       // Admin State
       const [adminTab, setAdminTab] = useState('finance'); 
       const [financeSubTab, setFinanceSubTab] = useState('ringkasan'); 
-      const [productSubTab, setProductSubTab] = useState('barang'); // barang, ekstra, diskon, kategori, stok, opname
+      const [productSubTab, setProductSubTab] = useState('barang'); 
       
       const [selectedMonth, setSelectedMonth] = useState(() => {
         const now = new Date();
@@ -114,7 +118,7 @@
       const [fixedCostForm, setFixedCostForm] = useState({ name: '', amount: '' });
       const [adminExpenseInput, setAdminExpenseInput] = useState({ desc: '', amount: '' }); 
 
-      // State Modals Admin
+      // State Modals
       const [isProductModalOpen, setIsProductModalOpen] = useState(false);
       const [editingProduct, setEditingProduct] = useState(null);
       const [productForm, setProductForm] = useState({ name: '', category: 'Umum', cost: '', price: '', stock: '', isUnlimited: false });
@@ -131,7 +135,6 @@
       const [editingInvestor, setEditingInvestor] = useState(null);
       const [investorForm, setInvestorForm] = useState({ name: '', sharePct: '' });
 
-      // State Modals Kasir
       const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
       const [amountReceived, setAmountReceived] = useState('');
       
@@ -140,24 +143,85 @@
       const [selectedExtrasForProduct, setSelectedExtrasForProduct] = useState([]);
 
       const [isSelectDiscountModalOpen, setIsSelectDiscountModalOpen] = useState(false);
-
       const [dialog, setDialog] = useState(null);
 
-      // --- AUTO-SAVE ---
-      useEffect(() => localStorage.setItem('pos_products', JSON.stringify(products)), [products]);
-      useEffect(() => localStorage.setItem('pos_categories', JSON.stringify(categories)), [categories]); 
-      useEffect(() => localStorage.setItem('pos_extras', JSON.stringify(extras)), [extras]); 
-      useEffect(() => localStorage.setItem('pos_discounts', JSON.stringify(discounts)), [discounts]); 
-      useEffect(() => localStorage.setItem('pos_cart', JSON.stringify(cart)), [cart]);
-      useEffect(() => localStorage.setItem('pos_tx', JSON.stringify(transactions)), [transactions]);
-      useEffect(() => localStorage.setItem('pos_expenses', JSON.stringify(expenses)), [expenses]);
-      useEffect(() => localStorage.setItem('pos_admin_expenses', JSON.stringify(adminExpenses)), [adminExpenses]);
-      useEffect(() => localStorage.setItem('pos_fixed_costs', JSON.stringify(fixedCosts)), [fixedCosts]);
-      useEffect(() => localStorage.setItem('pos_investors', JSON.stringify(investors)), [investors]);
-      useEffect(() => localStorage.setItem('pos_modal', JSON.stringify(modalAwal)), [modalAwal]);
-      useEffect(() => localStorage.setItem('pos_cashier_name', JSON.stringify(cashierName)), [cashierName]);
-      useEffect(() => localStorage.setItem('pos_shift_open', JSON.stringify(isShiftOpen)), [isShiftOpen]);
-      useEffect(() => localStorage.setItem('pos_payments', JSON.stringify(paymentMethods)), [paymentMethods]);
+      // === DATA DARI CSV UNTUK PEMULIHAN ===
+      const importedCategories = ['Minuman', 'Makanan', 'Snack', 'Kopi', 'Umum'];
+      const importedProducts = [
+        { id: 1, name: 'Mie Goreng', category: 'Makanan', stock: 3, cost: 0, price: 6000, isUnlimited: false },
+        { id: 2, name: 'Mie Kuah', category: 'Makanan', stock: 6, cost: 0, price: 6000, isUnlimited: false },
+        { id: 3, name: 'Gitget', category: 'Snack', stock: 26, cost: 0, price: 2000, isUnlimited: false },
+        { id: 4, name: 'Pop Mie', category: 'Makanan', stock: 1, cost: 0, price: 8000, isUnlimited: false },
+        { id: 5, name: 'Nutrisari', category: 'Minuman', stock: 114, cost: 0, price: 6000, isUnlimited: false },
+        { id: 6, name: 'Millo', category: 'Minuman', stock: 5, cost: 0, price: 6000, isUnlimited: false },
+        { id: 7, name: 'Goodday Latte', category: 'Kopi', stock: 7, cost: 0, price: 6000, isUnlimited: false },
+        { id: 8, name: 'Goodday Freeze', category: 'Kopi', stock: 13, cost: 0, price: 7000, isUnlimited: false },
+        { id: 9, name: 'whitecaffe', category: 'Kopi', stock: 6, cost: 0, price: 6000, isUnlimited: false },
+        { id: 10, name: 'Beng Beng', category: 'Minuman', stock: 4, cost: 0, price: 6000, isUnlimited: false },
+        { id: 11, name: 'Chocolatos Matcha', category: 'Minuman', stock: 11, cost: 0, price: 6000, isUnlimited: false },
+        { id: 12, name: 'Chocolatos Coklat', category: 'Minuman', stock: 7, cost: 0, price: 6000, isUnlimited: false },
+        { id: 13, name: 'Pop Ice All', category: 'Minuman', stock: 11, cost: 0, price: 6000, isUnlimited: false },
+        { id: 14, name: 'Pop Ice Sultan', category: 'Minuman', stock: 5, cost: 0, price: 7000, isUnlimited: false },
+        { id: 15, name: 'Susu Saset Putih', category: 'Minuman', stock: 8, cost: 0, price: 6000, isUnlimited: false },
+        { id: 16, name: 'Susu Saset Coklat', category: 'Minuman', stock: 6, cost: 0, price: 6000, isUnlimited: false },
+        { id: 17, name: 'Jahe Saset', category: 'Minuman', stock: 26, cost: 0, price: 4500, isUnlimited: false },
+        { id: 18, name: 'Secang', category: 'Minuman', stock: 16, cost: 0, price: 6000, isUnlimited: false },
+        { id: 19, name: 'Energen', category: 'Minuman', stock: 5, cost: 0, price: 6000, isUnlimited: false },
+        { id: 20, name: 'Extrajos', category: 'Minuman', stock: 13, cost: 0, price: 5000, isUnlimited: false },
+        { id: 21, name: 'Kuku Bima', category: 'Minuman', stock: 6, cost: 0, price: 5000, isUnlimited: false },
+        { id: 22, name: 'Goodday Cappucino', category: 'Kopi', stock: 5, cost: 0, price: 6000, isUnlimited: false },
+        { id: 23, name: 'Chocolito', category: 'Snack', stock: 35, cost: 0, price: 1000, isUnlimited: false },
+        { id: 24, name: 'TiniwiniB', category: 'Snack', stock: 28, cost: 0, price: 2000, isUnlimited: false },
+        { id: 25, name: 'Toppo', category: 'Snack', stock: 54, cost: 0, price: 2000, isUnlimited: false },
+        { id: 26, name: 'Pilus', category: 'Snack', stock: 0, cost: 0, price: 500, isUnlimited: false }
+      ];
+
+      // === FIREBASE SYNC ===
+      useEffect(() => {
+        const unsubscribe = storeRef.onSnapshot((doc) => {
+          if (doc.exists) {
+            const data = doc.data();
+            setProducts(data.products || []);
+            setCategories(data.categories || []);
+            setExtras(data.extras || []);
+            setDiscounts(data.discounts || []);
+            setTransactions(data.transactions || []);
+            setExpenses(data.expenses || []);
+            setAdminExpenses(data.adminExpenses || []);
+            setFixedCosts(data.fixedCosts || []);
+            setInvestors(data.investors || []);
+            setPaymentMethods(data.paymentMethods || []);
+            setIsShiftOpen(data.isShiftOpen || false);
+            setModalAwal(data.modalAwal || 0);
+            setCashierName(data.cashierName || '');
+          } else {
+            // Data Default Awal jika Server Firebase kosong
+            storeRef.set({
+              products: [
+                { id: 1, name: 'Kopi Susu Gula Aren', price: 15000, cost: 8000, stock: 50, category: 'Minuman' },
+                { id: 2, name: 'Matcha Latte', price: 18000, cost: 10000, stock: 30, category: 'Minuman' },
+              ],
+              categories: ['Minuman', 'Makanan', 'Snack', 'Umum'],
+              extras: [{id: 1, name: 'Extra Susu', price: 3000}],
+              discounts: [{id: 1, name: 'Diskon Karyawan', type: 'percentage', value: 10}],
+              transactions: [], expenses: [], adminExpenses: [], fixedCosts: [],
+              investors: [{ id: 1, name: 'Investor Utama', sharePct: 60 }],
+              paymentMethods: [
+                { id: 'cash', name: 'Tunai', active: true },
+                { id: 'qris', name: 'QRIS', active: true },
+                { id: 'transfer', name: 'Transfer Bank', active: false }
+              ],
+              isShiftOpen: false, modalAwal: 0, cashierName: ''
+            });
+          }
+          setIsDbLoaded(true);
+        });
+        return () => unsubscribe();
+      }, []);
+
+      const updateDB = (key, value) => {
+        storeRef.set({ [key]: value }, { merge: true });
+      };
 
       // --- RENDERER POP-UP CUSTOM ---
       const renderDialog = () => {
@@ -168,34 +232,19 @@
               <div className="p-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-2">{dialog.title}</h3>
                 <p className="text-gray-600 mb-4 text-sm">{dialog.message}</p>
-                
                 {dialog.type === 'prompt' && (
-                  <input 
-                    autoFocus
-                    type="text" 
-                    className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 mb-4" 
-                    id="dialog-prompt-input"
-                    defaultValue=""
-                    onKeyDown={(e) => { if (e.key === 'Enter') { document.getElementById('dialog-confirm-btn').click(); } }}
-                  />
+                  <input autoFocus type="text" className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 mb-4" id="dialog-prompt-input" defaultValue="" onKeyDown={(e) => { if (e.key === 'Enter') { document.getElementById('dialog-confirm-btn').click(); } }}/>
                 )}
-                
                 <div className="flex justify-end gap-3 mt-2">
-                  {dialog.type !== 'alert' && (
-                    <button onClick={() => setDialog(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Batal</button>
-                  )}
-                  <button 
-                    id="dialog-confirm-btn"
-                    onClick={() => {
+                  {dialog.type !== 'alert' && (<button onClick={() => setDialog(null)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Batal</button>)}
+                  <button id="dialog-confirm-btn" onClick={() => {
                       if (dialog.type === 'prompt') {
                         const val = document.getElementById('dialog-prompt-input').value;
                         if (dialog.onConfirm) dialog.onConfirm(val);
-                      } else if (dialog.onConfirm) {
-                        dialog.onConfirm();
-                      }
+                      } else if (dialog.onConfirm) dialog.onConfirm();
                       setDialog(null);
                     }} 
-                    className={`px-4 py-2 text-white font-bold rounded-xl shadow-md active:scale-95 transition-transform ${dialog.type === 'alert' ? 'bg-blue-600 hover:bg-blue-700 w-full' : (dialog.title.includes('Hapus') || dialog.title.includes('Tutup') ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700')}`}
+                    className={`px-4 py-2 text-white font-bold rounded-xl shadow-md active:scale-95 transition-transform ${dialog.type === 'alert' ? 'bg-blue-600 hover:bg-blue-700 w-full' : (dialog.title.includes('Hapus') || dialog.title.includes('Tutup') || dialog.title.includes('Batalkan') ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700')}`}
                   >
                     {dialog.type === 'alert' ? 'Tutup' : 'Lanjutkan'}
                   </button>
@@ -206,12 +255,19 @@
         );
       };
 
+      if (!isDbLoaded) {
+        return (
+          <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+            <h2 className="text-xl font-bold text-gray-800">Menghubungkan ke Server...</h2>
+            <p className="text-gray-500 text-sm">Mengambil data dari Cloud.</p>
+          </div>
+        )
+      }
+
       // --- LOGIC PIN & SHIFT ---
       const handleLoginClick = (role) => {
-        setTargetRole(role);
-        setPinInput('');
-        setErrorPin(false);
-        setView('pin');
+        setTargetRole(role); setPinInput(''); setErrorPin(false); setView('pin');
       };
 
       const handlePinSubmit = () => {
@@ -221,34 +277,29 @@
         } else if (targetRole === 'admin' && pinInput === PIN_ADMIN) {
           setView('admin');
         } else {
-          setErrorPin(true);
-          setPinInput('');
+          setErrorPin(true); setPinInput('');
         }
       };
 
       const handleStartShift = (e) => {
         e.preventDefault();
         if (!cashierName.trim()) {
-           setDialog({ type: 'alert', title: 'Nama Kasir Kosong', message: 'Harap masukkan nama kasir terlebih dahulu!' });
-           return;
+           setDialog({ type: 'alert', title: 'Nama Kasir Kosong', message: 'Harap masukkan nama kasir terlebih dahulu!' }); return;
         }
-        setIsShiftOpen(true);
+        updateDB('isShiftOpen', true);
+        updateDB('modalAwal', modalAwal);
+        updateDB('cashierName', cashierName);
         setView('cashier');
       };
 
       // --- LOGIC KASIR ---
       const handleProductClick = (product) => {
         if (!product.isUnlimited && product.stock <= 0) {
-          setDialog({ type: 'alert', title: 'Stok Habis', message: 'Maaf, stok barang ini sudah habis!' });
-          return;
+          setDialog({ type: 'alert', title: 'Stok Habis', message: 'Maaf, stok barang ini sudah habis!' }); return;
         }
         if (extras.length > 0) {
-          // Buka modal pilih ekstra
-          setProductToAdd(product);
-          setSelectedExtrasForProduct([]);
-          setIsSelectExtraModalOpen(true);
+          setProductToAdd(product); setSelectedExtrasForProduct([]); setIsSelectExtraModalOpen(true);
         } else {
-          // Tambah langsung
           addToCart(product, []);
         }
       };
@@ -262,115 +313,81 @@
       };
 
       const addToCart = (product, selectedExtrasArray) => {
-        // Buat kunci unik berdasarkan produk dan ekstra yang dipilih
         const extraIds = selectedExtrasArray.map(e => e.id).sort().join(',');
         const cartKey = `${product.id}-${extraIds}`;
-
         const existing = cart.find(item => item.cartKey === cartKey);
-        
-        // Hitung total stok yang sudah ada di cart untuk produk ini
         const qtyInCart = cart.filter(item => item.id === product.id).reduce((sum, item) => sum + item.qty, 0);
 
         if (!product.isUnlimited && qtyInCart >= product.stock) {
-          setDialog({ type: 'alert', title: 'Stok Terbatas', message: `Maksimal stok yang bisa dibeli adalah ${product.stock}.` });
-          return;
+          setDialog({ type: 'alert', title: 'Stok Terbatas', message: `Maksimal stok yang bisa dibeli adalah ${product.stock}.` }); return;
         }
 
         if (existing) {
           setCart(cart.map(item => item.cartKey === cartKey ? { ...item, qty: item.qty + 1 } : item));
         } else {
-          // Hitung harga total per item (harga dasar + semua ekstra)
           const extraPriceSum = selectedExtrasArray.reduce((sum, e) => sum + e.price, 0);
-          setCart([...cart, { 
-            ...product, 
-            cartKey,
-            qty: 1, 
-            selectedExtras: selectedExtrasArray,
-            finalItemPrice: product.price + extraPriceSum
-          }]);
+          setCart([...cart, { ...product, cartKey, qty: 1, selectedExtras: selectedExtrasArray, finalItemPrice: product.price + extraPriceSum }]);
         }
         setIsSelectExtraModalOpen(false);
       };
 
       const removeFromCart = (cartKey) => {
         const existing = cart.find(item => item.cartKey === cartKey);
-        if (existing.qty === 1) {
-          setCart(cart.filter(item => item.cartKey !== cartKey));
-        } else {
-          setCart(cart.map(item => item.cartKey === cartKey ? { ...item, qty: item.qty - 1 } : item));
-        }
+        if (existing.qty === 1) setCart(cart.filter(item => item.cartKey !== cartKey));
+        else setCart(cart.map(item => item.cartKey === cartKey ? { ...item, qty: item.qty - 1 } : item));
       };
 
       const cartSubtotal = cart.reduce((sum, item) => sum + (item.finalItemPrice * item.qty), 0);
-      
       let discountAmount = 0;
       if (activeDiscount) {
-        if (activeDiscount.type === 'percentage') {
-          discountAmount = (cartSubtotal * activeDiscount.value) / 100;
-        } else {
-          discountAmount = activeDiscount.value;
-        }
+        if (activeDiscount.type === 'percentage') discountAmount = (cartSubtotal * activeDiscount.value) / 100;
+        else discountAmount = activeDiscount.value;
       }
-      
       const totalCart = Math.max(0, cartSubtotal - discountAmount);
 
       const handlePreCheckout = () => {
         if (cart.length === 0) return;
-        setAmountReceived(totalCart.toString()); 
-        setIsCheckoutModalOpen(true);
+        setAmountReceived(totalCart.toString()); setIsCheckoutModalOpen(true);
       };
 
       const processCheckout = () => {
         if (cart.length === 0) return;
-
         const received = Number(amountReceived) || 0;
         if (selectedPayment === 'cash' && received < totalCart) {
-          setDialog({ type: 'alert', title: 'Uang Kurang', message: 'Nominal uang yang diterima kurang dari total tagihan!' });
-          return;
+          setDialog({ type: 'alert', title: 'Uang Kurang', message: 'Nominal uang yang diterima kurang dari total tagihan!' }); return;
         }
 
         const updatedProducts = products.map(p => {
-          if (p.isUnlimited) return p; // Jangan kurangi stok jika barang titipan
+          if (p.isUnlimited) return p;
           const qtyInCart = cart.filter(c => c.id === p.id).reduce((sum, c) => sum + c.qty, 0);
           return qtyInCart > 0 ? { ...p, stock: p.stock - qtyInCart } : p;
         });
-        setProducts(updatedProducts);
-
+        
         const totalCost = cart.reduce((sum, item) => sum + (item.cost * item.qty), 0);
-
         const newTx = {
           id: Date.now(),
           date: new Date().toLocaleString(),
-          items: cart,
-          subtotal: cartSubtotal,
-          discountApp: activeDiscount,
-          discountAmount: discountAmount,
-          total: totalCart,
-          profit: totalCart - totalCost, // Profit = Penjualan bersih - Modal dasar
-          paymentMethod: selectedPayment,
-          receivedAmount: selectedPayment === 'cash' ? received : totalCart,
-          changeAmount: selectedPayment === 'cash' ? received - totalCart : 0
+          items: cart, subtotal: cartSubtotal, discountApp: activeDiscount, discountAmount: discountAmount,
+          total: totalCart, profit: totalCart - totalCost, paymentMethod: selectedPayment,
+          receivedAmount: selectedPayment === 'cash' ? received : totalCart, changeAmount: selectedPayment === 'cash' ? received - totalCart : 0
         };
         
-        setTransactions([newTx, ...transactions]);
-        setCart([]);
-        setActiveDiscount(null);
-        setIsCheckoutModalOpen(false);
-        setAmountReceived('');
+        const newTxList = [newTx, ...transactions];
         
+        // Simpan ke DB Server
+        updateDB('products', updatedProducts);
+        updateDB('transactions', newTxList);
+        
+        // Reset lokal
+        setCart([]); setActiveDiscount(null); setIsCheckoutModalOpen(false); setAmountReceived('');
         setDialog({ type: 'alert', title: 'Transaksi Berhasil', message: selectedPayment === 'cash' ? `Kembalian: Rp ${(received - totalCart).toLocaleString()}` : 'Pembayaran Non-Tunai Berhasil.' });
       };
 
       const handleAddExpense = (e) => {
         e.preventDefault();
         if (!expenseInput.desc || !expenseInput.amount) return;
-        
-        setExpenses([{
-          id: Date.now(),
-          date: new Date().toLocaleString(),
-          desc: expenseInput.desc,
-          amount: parseInt(expenseInput.amount)
-        }, ...expenses]);
+        const newExp = [{ id: Date.now(), date: new Date().toLocaleString(), desc: expenseInput.desc, amount: parseInt(expenseInput.amount) }, ...expenses];
+        updateDB('expenses', newExp);
         setExpenseInput({ desc: '', amount: '' });
       };
 
@@ -381,173 +398,118 @@
       const estimasiUangLaci = modalAwal + shiftSalesCash - shiftTotalPengeluaran;
 
       const closeShiftWA = () => {
-        let text = `*LAPORAN TUTUP SHIFT*%0A`;
-        text += `Kasir: ${cashierName}%0A`;
-        text += `Tanggal: ${new Date().toLocaleDateString()}%0A%0A`;
-        text += `*RINGKASAN PENJUALAN*%0A`;
-        text += `Total Penjualan: Rp ${shiftTotalSales.toLocaleString()}%0A`;
-        text += `- Tunai: Rp ${shiftSalesCash.toLocaleString()}%0A`;
-        text += `- Non-Tunai (QRIS/dll): Rp ${shiftSalesNonCash.toLocaleString()}%0A%0A`;
-        text += `*ARUS KAS LACI*%0A`;
-        text += `Modal Awal: Rp ${modalAwal.toLocaleString()}%0A`;
-        text += `Total Pengeluaran: Rp ${shiftTotalPengeluaran.toLocaleString()}%0A`;
-        text += `*Estimasi Kas Fisik (Laci): Rp ${estimasiUangLaci.toLocaleString()}*%0A%0A`;
-        text += `*DETAIL PENGELUARAN*%0A`;
+        let text = `*LAPORAN TUTUP SHIFT*%0AKasir: ${cashierName}%0ATanggal: ${new Date().toLocaleDateString()}%0A%0A*RINGKASAN PENJUALAN*%0ATotal Penjualan: Rp ${shiftTotalSales.toLocaleString()}%0A- Tunai: Rp ${shiftSalesCash.toLocaleString()}%0A- Non-Tunai (QRIS/dll): Rp ${shiftSalesNonCash.toLocaleString()}%0A%0A*ARUS KAS LACI*%0AModal Awal: Rp ${modalAwal.toLocaleString()}%0ATotal Pengeluaran: Rp ${shiftTotalPengeluaran.toLocaleString()}%0A*Estimasi Kas Fisik (Laci): Rp ${estimasiUangLaci.toLocaleString()}*%0A%0A*DETAIL PENGELUARAN*%0A`;
         if (expenses.length === 0) text += `- Nihil%0A`;
-        expenses.forEach(exp => {
-          text += `- ${exp.desc}: Rp ${exp.amount.toLocaleString()}%0A`;
-        });
+        expenses.forEach(exp => { text += `- ${exp.desc}: Rp ${exp.amount.toLocaleString()}%0A`; });
         
-        const waUrl = `https://wa.me/?text=${text}`;
-        window.open(waUrl, '_blank');
-
+        window.open(`https://wa.me/?text=${text}`, '_blank');
         setDialog({
-          type: 'confirm',
-          title: 'Tutup Shift',
-          message: 'Apakah Anda yakin ingin menutup shift? Tindakan ini akan mereset modal dan arus kas hari ini.',
+          type: 'confirm', title: 'Tutup Shift', message: 'Apakah Anda yakin ingin menutup shift? Tindakan ini akan mereset modal dan arus kas hari ini.',
           onConfirm: () => {
-            setIsShiftOpen(false); 
-            setModalAwal(0);
-            setCashierName('');
-            setExpenses([]);
-            setCart([]);
-            setActiveDiscount(null);
-            setCashierTab('transaction');
-            setView('login');
+            updateDB('isShiftOpen', false);
+            updateDB('modalAwal', 0);
+            updateDB('cashierName', '');
+            updateDB('expenses', []);
+            setCart([]); setActiveDiscount(null); setCashierTab('transaction'); setView('login');
           }
         });
       };
 
-      // --- LOGIC ADMIN MANAJEMEN BARANG & EKSTRA & DISKON ---
-      const openAddProductModal = () => {
-        setEditingProduct(null);
-        setProductForm({ name: '', category: 'Umum', cost: '', price: '', stock: '', isUnlimited: false });
-        setIsProductModalOpen(true);
-      };
-
-      const openEditProductModal = (product) => {
-        setEditingProduct(product.id);
-        setProductForm({ ...product, isUnlimited: product.isUnlimited || false });
-        setIsProductModalOpen(true);
-      };
+      // --- LOGIC ADMIN ---
+      const openAddProductModal = () => { setEditingProduct(null); setProductForm({ name: '', category: 'Umum', cost: '', price: '', stock: '', isUnlimited: false }); setIsProductModalOpen(true); };
+      const openEditProductModal = (product) => { setEditingProduct(product.id); setProductForm({ ...product, isUnlimited: product.isUnlimited || false }); setIsProductModalOpen(true); };
 
       const handleSaveProduct = (e) => {
         e.preventDefault();
-        const parsedCost = Number(productForm.cost);
-        const parsedPrice = Number(productForm.price);
-        const parsedStock = productForm.isUnlimited ? 0 : Number(productForm.stock);
-
-        if (editingProduct) {
-           setProducts(products.map(p => p.id === editingProduct ? { ...p, ...productForm, cost: parsedCost, price: parsedPrice, stock: parsedStock } : p));
-        } else {
+        const parsedCost = Number(productForm.cost); const parsedPrice = Number(productForm.price); const parsedStock = productForm.isUnlimited ? 0 : Number(productForm.stock);
+        let updatedList;
+        if (editingProduct) updatedList = products.map(p => p.id === editingProduct ? { ...p, ...productForm, cost: parsedCost, price: parsedPrice, stock: parsedStock } : p);
+        else {
            const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-           setProducts([...products, { ...productForm, id: newId, cost: parsedCost, price: parsedPrice, stock: parsedStock }]);
+           updatedList = [...products, { ...productForm, id: newId, cost: parsedCost, price: parsedPrice, stock: parsedStock }];
         }
+        updateDB('products', updatedList);
         setIsProductModalOpen(false);
       };
 
       const handleDeleteProduct = (id) => {
-        setDialog({
-          type: 'confirm', title: 'Hapus Barang', message: 'Yakin ingin menghapus produk ini?',
-          onConfirm: () => setProducts(products.filter(p => p.id !== id))
-        });
+        setDialog({ type: 'confirm', title: 'Hapus Barang', message: 'Yakin ingin menghapus produk ini?', onConfirm: () => { const newP = products.filter(p => p.id !== id); updateDB('products', newP); } });
       };
 
-      // Ekstra
       const handleSaveExtra = (e) => {
-        e.preventDefault();
-        const p = Number(extraForm.price);
-        if (editingExtra) {
-          setExtras(extras.map(ex => ex.id === editingExtra ? { ...ex, ...extraForm, price: p } : ex));
-        } else {
-          const newId = extras.length > 0 ? Math.max(...extras.map(ex => ex.id)) + 1 : 1;
-          setExtras([...extras, { ...extraForm, id: newId, price: p }]);
-        }
-        setIsExtraModalOpen(false);
+        e.preventDefault(); const p = Number(extraForm.price); let newList;
+        if (editingExtra) newList = extras.map(ex => ex.id === editingExtra ? { ...ex, ...extraForm, price: p } : ex);
+        else { const newId = extras.length > 0 ? Math.max(...extras.map(ex => ex.id)) + 1 : 1; newList = [...extras, { ...extraForm, id: newId, price: p }]; }
+        updateDB('extras', newList); setIsExtraModalOpen(false);
       };
-      const handleDeleteExtra = (id) => {
-        setDialog({ type: 'confirm', title: 'Hapus Ekstra', message: 'Yakin ingin menghapus opsi ekstra/topping ini?', onConfirm: () => setExtras(extras.filter(ex => ex.id !== id)) });
-      };
+      const handleDeleteExtra = (id) => { setDialog({ type: 'confirm', title: 'Hapus Ekstra', message: 'Yakin hapus opsi ekstra?', onConfirm: () => { const newEx = extras.filter(ex => ex.id !== id); updateDB('extras', newEx); } }); };
 
-      // Diskon
       const handleSaveDiscount = (e) => {
-        e.preventDefault();
-        const v = Number(discountForm.value);
-        if (editingDiscount) {
-          setDiscounts(discounts.map(d => d.id === editingDiscount ? { ...d, ...discountForm, value: v } : d));
-        } else {
-          const newId = discounts.length > 0 ? Math.max(...discounts.map(d => d.id)) + 1 : 1;
-          setDiscounts([...discounts, { ...discountForm, id: newId, value: v }]);
-        }
-        setIsDiscountModalOpen(false);
+        e.preventDefault(); const v = Number(discountForm.value); let newList;
+        if (editingDiscount) newList = discounts.map(d => d.id === editingDiscount ? { ...d, ...discountForm, value: v } : d);
+        else { const newId = discounts.length > 0 ? Math.max(...discounts.map(d => d.id)) + 1 : 1; newList = [...discounts, { ...discountForm, id: newId, value: v }]; }
+        updateDB('discounts', newList); setIsDiscountModalOpen(false);
       };
-      const handleDeleteDiscount = (id) => {
-        setDialog({ type: 'confirm', title: 'Hapus Diskon', message: 'Yakin ingin menghapus promo diskon ini?', onConfirm: () => setDiscounts(discounts.filter(d => d.id !== id)) });
-      };
+      const handleDeleteDiscount = (id) => { setDialog({ type: 'confirm', title: 'Hapus Diskon', message: 'Yakin hapus promo?', onConfirm: () => { const newD = discounts.filter(d => d.id !== id); updateDB('discounts', newD); } }); };
 
-      // --- LOGIC KATEGORI ---
       const handleAddCategory = () => {
-        setDialog({
-          type: 'prompt', title: 'Buat Kategori Baru', message: 'Masukkan nama kategori baru:',
-          onConfirm: (val) => {
+        setDialog({ type: 'prompt', title: 'Buat Kategori Baru', message: 'Masukkan nama kategori baru:', onConfirm: (val) => {
             if (val && val.trim() !== '') {
               const formattedCat = val.trim();
-              if (!categories.includes(formattedCat)) setCategories(prev => [...prev, formattedCat]);
+              if (!categories.includes(formattedCat)) { const newC = [...categories, formattedCat]; updateDB('categories', newC); }
               else setTimeout(() => setDialog({ type: 'alert', title: 'Gagal', message: 'Kategori sudah ada!' }), 100);
             }
           }
         });
       };
-
       const handleDeleteCategory = (cat) => {
-        if(cat === 'Umum') {
-           setDialog({ type: 'alert', title: 'Akses Ditolak', message: 'Kategori Umum tidak bisa dihapus!' });
-           return;
-        }
-        setDialog({
-          type: 'confirm', title: 'Hapus Kategori', message: `Yakin ingin menghapus kategori "${cat}"? Semua barang di kategori ini akan dipindah ke "Umum".`,
-          onConfirm: () => {
-            setCategories(categories.filter(c => c !== cat));
-            setProducts(products.map(p => p.category === cat ? {...p, category: 'Umum'} : p));
+        if(cat === 'Umum') { setDialog({ type: 'alert', title: 'Akses Ditolak', message: 'Kategori Umum tidak bisa dihapus!' }); return; }
+        setDialog({ type: 'confirm', title: 'Hapus Kategori', message: `Yakin ingin menghapus kategori "${cat}"?`, onConfirm: () => {
+            const newC = categories.filter(c => c !== cat); updateDB('categories', newC);
+            const newP = products.map(p => p.category === cat ? {...p, category: 'Umum'} : p); updateDB('products', newP);
           }
         });
       };
 
-      // --- LOGIC KEUANGAN & ADMIN ---
       const handleSaveInvestor = (e) => { 
-        e.preventDefault();
-        const parsedPct = Number(investorForm.sharePct);
+        e.preventDefault(); const parsedPct = Number(investorForm.sharePct);
         const currentOtherPct = editingInvestor ? investors.filter(i => i.id !== editingInvestor).reduce((sum, inv) => sum + inv.sharePct, 0) : investors.reduce((sum, inv) => sum + inv.sharePct, 0);
-
-        if (currentOtherPct + parsedPct > 100) {
-          setDialog({ type: 'alert', title: 'Persentase Melebihi Batas', message: `Total bagi hasil tidak boleh lebih dari 100%. Sisa maksimal yang bisa ditambahkan adalah ${100 - currentOtherPct}%.` });
-          return;
-        }
-
-        if (editingInvestor) setInvestors(investors.map(i => i.id === editingInvestor ? { ...i, ...investorForm, sharePct: parsedPct } : i));
-        else {
-          const newId = investors.length > 0 ? Math.max(...investors.map(i => i.id)) + 1 : 1;
-          setInvestors([...investors, { ...investorForm, id: newId, sharePct: parsedPct }]);
-        }
-        setIsInvestorModalOpen(false);
+        if (currentOtherPct + parsedPct > 100) { setDialog({ type: 'alert', title: 'Persentase Melebihi Batas', message: 'Total bagi hasil tidak boleh lebih dari 100%.' }); return; }
+        let newList;
+        if (editingInvestor) newList = investors.map(i => i.id === editingInvestor ? { ...i, ...investorForm, sharePct: parsedPct } : i);
+        else { const newId = investors.length > 0 ? Math.max(...investors.map(i => i.id)) + 1 : 1; newList = [...investors, { ...investorForm, id: newId, sharePct: parsedPct }]; }
+        updateDB('investors', newList); setIsInvestorModalOpen(false);
       };
+      const handleDeleteInvestor = (id) => { setDialog({ type: 'confirm', title: 'Hapus Investor', message: 'Yakin hapus investor?', onConfirm: () => { const newI = investors.filter(i => i.id !== id); updateDB('investors', newI); } }); };
       
       const updateStock = (id, change) => {
-        setProducts(products.map(p => {
-          if (p.id === id) {
-            const newStock = Math.max(0, p.stock + change);
-            return { ...p, stock: newStock };
-          }
-          return p;
-        }));
+        const newP = products.map(p => p.id === id ? { ...p, stock: Math.max(0, p.stock + change) } : p);
+        updateDB('products', newP);
       };
 
-      const handleDeleteInvestor = (id) => { setDialog({ type: 'confirm', title: 'Hapus Investor', message: 'Yakin ingin menghapus investor ini?', onConfirm: () => setInvestors(investors.filter(i => i.id !== id)) }); };
-      const handleAddFixedCost = (e) => { e.preventDefault(); if (!fixedCostForm.name || !fixedCostForm.amount) return; setFixedCosts([...fixedCosts, { id: Date.now(), name: fixedCostForm.name, amount: Number(fixedCostForm.amount) }]); setFixedCostForm({ name: '', amount: '' }); };
-      const handleDeleteFixedCost = (id) => { setDialog({ type: 'confirm', title: 'Hapus Pengeluaran Tetap', message: 'Yakin ingin menghapus ini?', onConfirm: () => setFixedCosts(fixedCosts.filter(fc => fc.id !== id)) }); };
-      const handleAddAdminExpense = (e) => { e.preventDefault(); if (!adminExpenseInput.desc || !adminExpenseInput.amount) return; setAdminExpenses([{ id: Date.now(), date: new Date().toLocaleString(), desc: adminExpenseInput.desc, amount: parseInt(adminExpenseInput.amount) }, ...adminExpenses]); setAdminExpenseInput({ desc: '', amount: '' }); };
-      const handleDeleteAdminExpense = (id) => { setDialog({ type: 'confirm', title: 'Hapus Pengeluaran', message: 'Yakin menghapus ini?', onConfirm: () => setAdminExpenses(adminExpenses.filter(exp => exp.id !== id)) }); };
-      const togglePaymentMethod = (id) => { setPaymentMethods(paymentMethods.map(pm => pm.id === id ? { ...pm, active: !pm.active } : pm)); };
+      const handleAddFixedCost = (e) => { e.preventDefault(); if (!fixedCostForm.name || !fixedCostForm.amount) return; const newFC = [...fixedCosts, { id: Date.now(), name: fixedCostForm.name, amount: Number(fixedCostForm.amount) }]; updateDB('fixedCosts', newFC); setFixedCostForm({ name: '', amount: '' }); };
+      const handleDeleteFixedCost = (id) => { setDialog({ type: 'confirm', title: 'Hapus Pengeluaran Tetap', message: 'Yakin hapus ini?', onConfirm: () => { const newFC = fixedCosts.filter(fc => fc.id !== id); updateDB('fixedCosts', newFC); } }); };
+      const handleAddAdminExpense = (e) => { e.preventDefault(); if (!adminExpenseInput.desc || !adminExpenseInput.amount) return; const newAE = [{ id: Date.now(), date: new Date().toLocaleString(), desc: adminExpenseInput.desc, amount: parseInt(adminExpenseInput.amount) }, ...adminExpenses]; updateDB('adminExpenses', newAE); setAdminExpenseInput({ desc: '', amount: '' }); };
+      const handleDeleteAdminExpense = (id) => { setDialog({ type: 'confirm', title: 'Hapus Pengeluaran', message: 'Yakin menghapus ini?', onConfirm: () => { const newAE = adminExpenses.filter(exp => exp.id !== id); updateDB('adminExpenses', newAE); } }); };
+      const togglePaymentMethod = (id) => { const newPM = paymentMethods.map(pm => pm.id === id ? { ...pm, active: !pm.active } : pm); updateDB('paymentMethods', newPM); };
+
+      const handleCancelTransaction = (txId) => {
+        setDialog({
+          type: 'confirm', title: 'Batalkan Transaksi', message: 'Yakin ingin membatalkan transaksi ini? Stok barang akan dikembalikan ke rak.',
+          onConfirm: () => {
+            const txToCancel = transactions.find(t => t.id === txId);
+            if (!txToCancel) return;
+            const updatedProducts = products.map(p => {
+              const itemInTx = txToCancel.items.find(item => item.id === p.id);
+              if (itemInTx && !p.isUnlimited) return { ...p, stock: p.stock + itemInTx.qty };
+              return p;
+            });
+            updateDB('products', updatedProducts);
+            const newTx = transactions.filter(t => t.id !== txId); updateDB('transactions', newTx);
+            setTimeout(() => setDialog({ type: 'alert', title: 'Berhasil', message: 'Transaksi dibatalkan. Laporan & stok telah diperbarui.' }), 100);
+          }
+        });
+      };
 
       const exportToCSV = () => {
         const headers = ['ID,Nama Barang,Kategori,Sisa Stok,Harga Modal,Harga Jual,Total Nilai Aset'];
@@ -559,27 +521,15 @@
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
       };
 
-      const handleCancelTransaction = (txId) => {
+      const handleRestoreDataCSV = () => {
         setDialog({
           type: 'confirm',
-          title: 'Batalkan Transaksi',
-          message: 'Yakin ingin membatalkan transaksi ini? Stok barang akan dikembalikan ke rak dan laporan keuangan akan disesuaikan otomatis.',
+          title: 'Pulihkan Data CSV',
+          message: 'Aksi ini akan memasukkan 26 data barang (Mie Goreng, Nutrisari, dll) dari file CSV ke dalam database Firebase. Lanjutkan?',
           onConfirm: () => {
-            const txToCancel = transactions.find(t => t.id === txId);
-            if (!txToCancel) return;
-
-            // Mengembalikan stok barang (kecuali barang titipan)
-            const updatedProducts = products.map(p => {
-              const itemInTx = txToCancel.items.find(item => item.id === p.id);
-              if (itemInTx && !p.isUnlimited) {
-                return { ...p, stock: p.stock + itemInTx.qty }; // Tambahkan qty yang di-refund kembali ke stok
-              }
-              return p;
-            });
-
-            setProducts(updatedProducts);
-            setTransactions(transactions.filter(t => t.id !== txId)); // Hapus transaksinya
-            setTimeout(() => setDialog({ type: 'alert', title: 'Berhasil', message: 'Transaksi berhasil dibatalkan. Laporan dan stok telah diperbarui.' }), 100);
+            updateDB('products', importedProducts);
+            updateDB('categories', importedCategories);
+            setTimeout(() => setDialog({ type: 'alert', title: 'Berhasil', message: '26 Barang berhasil dimasukkan ke Firebase!' }), 100);
           }
         });
       };
@@ -600,23 +550,19 @@
       
       const monthlyNetProfit = monthlyGrossProfit - monthlyShiftExpenses - monthlyAdminTotalExpenses - totalFixedCosts;
       const profitToShare = monthlyNetProfit; 
-      
       const totalInvestorPct = investors.reduce((sum, inv) => sum + inv.sharePct, 0);
       const staffPct = Math.max(0, 100 - totalInvestorPct);
       const staffShare = (profitToShare * staffPct) / 100;
 
-      // --- TAMPILAN KASIR / UI ---
+      // --- TAMPILAN UI ---
       if (view === 'login') {
         return (
           <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md text-center">
-              <div className="flex justify-center mb-6">
-                <div className="bg-blue-600 p-4 rounded-full text-white">
-                  <Icons.ShoppingCart size={40} />
-                </div>
-              </div>
+              <div className="flex justify-center mb-6"><div className="bg-blue-600 p-4 rounded-full text-white"><Icons.ShoppingCart size={40} /></div></div>
               <h1 className="text-2xl font-bold text-gray-800 mb-2">Kasir Pintar</h1>
-              <p className="text-gray-500 mb-8">Pilih peran Anda untuk masuk</p>
+              <p className="text-gray-500 mb-2">Pilih peran Anda untuk masuk</p>
+              <p className="text-xs text-green-600 font-bold mb-6 bg-green-100 p-2 rounded-lg">☁️ Terkoneksi ke Cloud Server</p>
               <button onClick={() => handleLoginClick('cashier')} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold mb-4 hover:bg-blue-700 active:scale-95 transition-all text-lg">Masuk sebagai Kasir</button>
               <button onClick={() => handleLoginClick('admin')} className="w-full bg-slate-800 text-white py-4 rounded-xl font-bold hover:bg-slate-900 active:scale-95 transition-all text-lg">Masuk sebagai Admin</button>
             </div>
@@ -655,14 +601,8 @@
               <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">Buka Shift Kasir</h2>
               <p className="text-sm text-center text-gray-500 mb-8">Masukkan nama Anda dan uang modal awal yang ada di laci saat ini.</p>
               <form onSubmit={handleStartShift}>
-                <div className="mb-4">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Nama Kasir</label>
-                  <input type="text" required autoFocus value={cashierName} onChange={(e) => setCashierName(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg font-bold text-gray-800 outline-none focus:border-blue-500 transition-colors" placeholder="Contoh: Budi"/>
-                </div>
-                <div className="mb-6">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Modal Awal (Rp)</label>
-                  <input type="number" required value={modalAwal || ''} onChange={(e) => setModalAwal(Number(e.target.value))} className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl font-bold text-gray-800 outline-none focus:border-blue-500 transition-colors" placeholder="Contoh: 100000"/>
-                </div>
+                <div className="mb-4"><label className="block text-sm font-bold text-gray-700 mb-2">Nama Kasir</label><input type="text" required autoFocus value={cashierName} onChange={(e) => setCashierName(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg font-bold text-gray-800 outline-none focus:border-blue-500 transition-colors" placeholder="Contoh: Budi"/></div>
+                <div className="mb-6"><label className="block text-sm font-bold text-gray-700 mb-2">Modal Awal (Rp)</label><input type="number" required value={modalAwal || ''} onChange={(e) => setModalAwal(Number(e.target.value))} className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl font-bold text-gray-800 outline-none focus:border-blue-500 transition-colors" placeholder="Contoh: 100000"/></div>
                 <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold transition-all text-lg shadow-md active:scale-95">Mulai Jualan</button>
                 <button type="button" onClick={() => setView('login')} className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-600 py-3 rounded-xl font-bold transition-all text-sm">Batal</button>
               </form>
@@ -674,13 +614,12 @@
 
       if (view === 'cashier') {
         return (
-          <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
-            <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+          <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row relative">
+            <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-24 md:pb-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">Menu Penjualan</h2>
                 <button onClick={() => setView('login')} className="flex items-center text-red-500 font-semibold p-2 bg-red-50 rounded-lg transition-colors hover:bg-red-100"><Icons.LogOut size={20} className="mr-2" /> Keluar</button>
               </div>
-              
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map(p => (
                   <div key={p.id} onClick={() => handleProductClick(p)} className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer active:scale-95 transition-transform ${p.isUnlimited || p.stock > 0 ? 'border-transparent hover:border-blue-500' : 'border-red-200 opacity-60'}`}>
@@ -708,9 +647,7 @@
                         <div key={item.cartKey} className="flex justify-between items-center mb-4 p-3 bg-gray-50 rounded-xl border">
                           <div>
                             <h4 className="font-bold text-sm text-gray-800">{item.name}</h4>
-                            {item.selectedExtras?.length > 0 && (
-                              <p className="text-xs text-gray-500 mb-1">+ {item.selectedExtras.map(e => e.name).join(', ')}</p>
-                            )}
+                            {item.selectedExtras?.length > 0 && (<p className="text-xs text-gray-500 mb-1">+ {item.selectedExtras.map(e => e.name).join(', ')}</p>)}
                             <p className="text-blue-600 text-sm font-semibold">Rp {(item.finalItemPrice * item.qty).toLocaleString()}</p>
                           </div>
                           <div className="flex items-center bg-white rounded-lg border shadow-sm shrink-0">
@@ -722,33 +659,23 @@
                       ))
                     )}
                   </div>
-
                   <div className="p-4 border-t bg-white shrink-0">
                     <div className="mb-4">
                        <div className="flex justify-between items-center mb-2">
                          <span className="text-sm font-semibold text-gray-600">Diskon Transaksi:</span>
                          {discounts.length > 0 ? (
-                           <button 
-                             onClick={() => setIsSelectDiscountModalOpen(true)}
-                             className="text-sm border-2 border-gray-200 rounded-lg px-3 py-1.5 outline-none bg-white hover:bg-gray-50 text-gray-700 font-bold flex items-center shadow-sm transition-colors active:scale-95"
-                           >
+                           <button onClick={() => setIsSelectDiscountModalOpen(true)} className="text-sm border-2 border-gray-200 rounded-lg px-3 py-1.5 outline-none bg-white hover:bg-gray-50 text-gray-700 font-bold flex items-center shadow-sm transition-colors active:scale-95">
                              {activeDiscount ? activeDiscount.name : 'Pilih Promo...'} <Icons.Percent size={14} className="ml-2 text-gray-400"/>
                            </button>
-                         ) : (
-                           <span className="text-xs text-gray-400">Belum ada promo</span>
-                         )}
+                         ) : (<span className="text-xs text-gray-400">Belum ada promo</span>)}
                        </div>
                        {activeDiscount && (
-                         <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-200">
-                           <span className="text-xs font-bold text-orange-700 flex items-center"><Icons.Percent size={14} className="mr-1"/> {activeDiscount.name}</span>
-                           <span className="text-sm font-bold text-orange-600">- Rp {discountAmount.toLocaleString()}</span>
-                         </div>
+                         <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-200"><span className="text-xs font-bold text-orange-700 flex items-center"><Icons.Percent size={14} className="mr-1"/> {activeDiscount.name}</span><span className="text-sm font-bold text-orange-600">- Rp {discountAmount.toLocaleString()}</span></div>
                        )}
                     </div>
-
                     <div className="mb-3">
                       <p className="text-sm font-semibold text-gray-600 mb-2">Metode Pembayaran:</p>
-                      <div className="flex gap-2 overflow-x-auto pb-2">
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                         {paymentMethods.filter(pm => pm.active).map(pm => (
                           <button key={pm.id} onClick={() => setSelectedPayment(pm.id)} className={`px-4 py-2 rounded-lg text-sm font-bold border transition-all whitespace-nowrap ${selectedPayment === pm.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>{pm.name}</button>
                         ))}
@@ -770,28 +697,12 @@
                   <div className="space-y-3">
                     {transactions.slice(0, 20).map(tx => (
                       <div key={tx.id} className="bg-white p-3 rounded-xl border shadow-sm">
-                        <div className="flex justify-between items-center mb-2 border-b pb-2">
-                           <span className="text-xs text-gray-500">{tx.date}</span>
-                           <span className={`text-xs font-bold px-2 py-1 rounded-md ${tx.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{tx.paymentMethod.toUpperCase()}</span>
-                        </div>
+                        <div className="flex justify-between items-center mb-2 border-b pb-2"><span className="text-xs text-gray-500">{tx.date}</span><span className={`text-xs font-bold px-2 py-1 rounded-md ${tx.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{tx.paymentMethod.toUpperCase()}</span></div>
                         <ul className="text-sm mb-2 space-y-1">
-                          {tx.items.map((item, idx) => (
-                            <li key={idx} className="flex justify-between">
-                              <span className="text-gray-700">{item.qty}x {item.name}</span>
-                              <span className="text-gray-600">Rp {(item.qty * item.finalItemPrice).toLocaleString()}</span>
-                            </li>
-                          ))}
+                          {tx.items.map((item, idx) => (<li key={idx} className="flex justify-between"><span className="text-gray-700">{item.qty}x {item.name}</span><span className="text-gray-600">Rp {(item.qty * item.finalItemPrice).toLocaleString()}</span></li>))}
                         </ul>
-                        {tx.discountAmount > 0 && (
-                           <div className="flex justify-between text-xs text-orange-600 font-bold mb-1">
-                             <span>Diskon ({tx.discountApp?.name})</span>
-                             <span>- Rp {tx.discountAmount.toLocaleString()}</span>
-                           </div>
-                        )}
-                        <div className="flex justify-between font-bold text-gray-800 mt-2 pt-2 border-t">
-                           <span>Total:</span>
-                           <span>Rp {tx.total.toLocaleString()}</span>
-                        </div>
+                        {tx.discountAmount > 0 && (<div className="flex justify-between text-xs text-orange-600 font-bold mb-1"><span>Diskon ({tx.discountApp?.name})</span><span>- Rp {tx.discountAmount.toLocaleString()}</span></div>)}
+                        <div className="flex justify-between font-bold text-gray-800 mt-2 pt-2 border-t"><span>Total:</span><span>Rp {tx.total.toLocaleString()}</span></div>
                       </div>
                     ))}
                     {transactions.length === 0 && <p className="text-center text-gray-400 text-sm mt-5">Belum ada transaksi di perangkat ini.</p>}
@@ -818,7 +729,7 @@
               )}
             </div>
 
-            {/* --- MODAL PILIH EKSTRA (KASIR) --- */}
+            {/* MODALS KASIR */}
             {isSelectExtraModalOpen && productToAdd && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
@@ -839,23 +750,18 @@
                             <span className={`font-semibold ${isSelected ? 'text-blue-800' : 'text-gray-700'}`}>{ex.name}</span>
                             <div className="flex items-center gap-3">
                               <span className="text-sm text-gray-500">+ Rp {ex.price.toLocaleString()}</span>
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>
-                                {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                              </div>
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>{isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}</div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                    <button onClick={() => addToCart(productToAdd, selectedExtrasForProduct)} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md active:scale-95 transition-transform">
-                      Tambah ke Pesanan
-                    </button>
+                    <button onClick={() => addToCart(productToAdd, selectedExtrasForProduct)} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md active:scale-95 transition-transform">Tambah ke Pesanan</button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* --- MODAL PILIH DISKON (KASIR) --- */}
             {isSelectDiscountModalOpen && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
@@ -865,28 +771,15 @@
                   </div>
                   <div className="p-4">
                     <div className="space-y-2 max-h-60 overflow-y-auto mb-2">
-                      <div 
-                        onClick={() => { setActiveDiscount(null); setIsSelectDiscountModalOpen(false); }} 
-                        className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-colors ${!activeDiscount ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'}`}
-                      >
+                      <div onClick={() => { setActiveDiscount(null); setIsSelectDiscountModalOpen(false); }} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-colors ${!activeDiscount ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'}`}>
                         <span className={`font-semibold ${!activeDiscount ? 'text-blue-800' : 'text-gray-700'}`}>Tanpa Promo</span>
                       </div>
-                      
                       {discounts.map(d => {
                         const isSelected = activeDiscount?.id === d.id;
                         return (
-                          <div 
-                            key={d.id} 
-                            onClick={() => { setActiveDiscount(d); setIsSelectDiscountModalOpen(false); }} 
-                            className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'}`}
-                          >
-                            <div>
-                              <span className={`font-semibold block ${isSelected ? 'text-blue-800' : 'text-gray-700'}`}>{d.name}</span>
-                              <span className="text-xs text-gray-500">Potongan: {d.type === 'percentage' ? `${d.value}%` : `Rp ${d.value.toLocaleString()}`}</span>
-                            </div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>
-                              {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                            </div>
+                          <div key={d.id} onClick={() => { setActiveDiscount(d); setIsSelectDiscountModalOpen(false); }} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'}`}>
+                            <div><span className={`font-semibold block ${isSelected ? 'text-blue-800' : 'text-gray-700'}`}>{d.name}</span><span className="text-xs text-gray-500">Potongan: {d.type === 'percentage' ? `${d.value}%` : `Rp ${d.value.toLocaleString()}`}</span></div>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`}>{isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}</div>
                           </div>
                         );
                       })}
@@ -896,7 +789,6 @@
               </div>
             )}
 
-            {/* --- MODAL PEMBAYARAN KASIR --- */}
             {isCheckoutModalOpen && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
@@ -905,26 +797,17 @@
                     <button onClick={() => setIsCheckoutModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors"><Icons.X size={20}/></button>
                   </div>
                   <div className="p-6">
-                    <div className="text-center mb-6">
-                      <p className="text-gray-500 mb-1">Total Tagihan Bersih</p>
-                      <h2 className="text-4xl font-bold text-gray-800">Rp {totalCart.toLocaleString()}</h2>
-                    </div>
+                    <div className="text-center mb-6"><p className="text-gray-500 mb-1">Total Tagihan Bersih</p><h2 className="text-4xl font-bold text-gray-800">Rp {totalCart.toLocaleString()}</h2></div>
                     <div className="mb-4"><span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-full mb-3">Metode: {paymentMethods.find(pm => pm.id === selectedPayment)?.name || selectedPayment}</span></div>
                     {selectedPayment === 'cash' ? (
                       <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Uang Diterima dari Pelanggan</label>
-                          <input autoFocus type="number" min="0" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} onFocus={(e) => e.target.select()} className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl font-bold outline-none focus:border-blue-500 transition-colors text-right"/>
-                        </div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Uang Diterima dari Pelanggan</label><input autoFocus type="number" min="0" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} onFocus={(e) => e.target.select()} className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl font-bold outline-none focus:border-blue-500 transition-colors text-right"/></div>
                         <div className="flex gap-2">
                            <button onClick={() => setAmountReceived(totalCart.toString())} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg font-bold text-sm transition-colors">Uang Pas</button>
                            <button onClick={() => setAmountReceived('50000')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg font-bold text-sm transition-colors">50rb</button>
                            <button onClick={() => setAmountReceived('100000')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg font-bold text-sm transition-colors">100rb</button>
                         </div>
-                        <div className={`p-4 rounded-xl flex justify-between items-center border ${Number(amountReceived) >= totalCart ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                          <span className="font-bold text-gray-700">Kembalian:</span>
-                          <span className={`text-xl font-bold ${Number(amountReceived) >= totalCart ? 'text-green-700' : 'text-red-600'}`}>Rp {Math.max(0, Number(amountReceived) - totalCart).toLocaleString()}</span>
-                        </div>
+                        <div className={`p-4 rounded-xl flex justify-between items-center border ${Number(amountReceived) >= totalCart ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}><span className="font-bold text-gray-700">Kembalian:</span><span className={`text-xl font-bold ${Number(amountReceived) >= totalCart ? 'text-green-700' : 'text-red-600'}`}>Rp {Math.max(0, Number(amountReceived) - totalCart).toLocaleString()}</span></div>
                       </div>
                     ) : (
                       <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-center mb-4"><p className="text-blue-800 text-sm">Pastikan pelanggan sudah berhasil melakukan pembayaran (Scan QRIS / Transfer) sebelum menekan tombol konfirmasi.</p></div>
@@ -937,6 +820,7 @@
                 </div>
               </div>
             )}
+            
             {renderDialog()}
           </div>
         );
@@ -944,22 +828,21 @@
 
       if (view === 'admin') {
         return (
-          <div className="min-h-screen bg-gray-100 flex flex-col">
+          <div className="min-h-screen bg-gray-100 flex flex-col relative">
             <div className="bg-slate-800 text-white p-4 shadow-md flex justify-between items-center z-10 relative">
               <h2 className="text-xl font-bold flex items-center"><Icons.LayoutDashboard className="mr-2" size={24} /> Panel Admin</h2>
               <button onClick={() => setView('login')} className="flex items-center text-slate-300 hover:text-white text-sm bg-slate-700 p-2 rounded-lg transition-colors"><Icons.LogOut size={16} className="mr-2" /> Keluar</button>
             </div>
 
-            <div className="bg-white border-b shadow-sm flex overflow-x-auto">
+            <div className="bg-white border-b shadow-sm flex overflow-x-auto scrollbar-hide">
               <button onClick={() => setAdminTab('finance')} className={`px-6 py-4 font-bold whitespace-nowrap border-b-2 transition-colors flex items-center ${adminTab === 'finance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Icons.TrendingUp className="mr-2" size={18}/> Manajemen Keuangan</button>
               <button onClick={() => setAdminTab('products')} className={`px-6 py-4 font-bold whitespace-nowrap border-b-2 transition-colors flex items-center ${adminTab === 'products' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Icons.Package className="mr-2" size={18}/> Manajemen Barang</button>
             </div>
 
-            <div className="p-4 md:p-6 w-full flex-1 overflow-y-auto">
-              
+            <div className="p-4 md:p-6 w-full flex-1 overflow-y-auto pb-24">
               {adminTab === 'finance' && (
                 <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
-                  {/* Sub-Navigasi Keuangan */}
+                  {/* Sub-Navigasi Keuangan dengan gaya geser mendatar (scrollable) di mobile */}
                   <div className="w-full md:w-64 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                     <button onClick={() => setFinanceSubTab('ringkasan')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${financeSubTab === 'ringkasan' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Calendar className="mr-3" size={20}/> Ringkasan Bulanan</button>
                     <button onClick={() => setFinanceSubTab('riwayat')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${financeSubTab === 'riwayat' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Clock className="mr-3" size={20}/> Riwayat Transaksi</button>
@@ -1004,7 +887,6 @@
                           </div>
                           <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border"><Icons.Calendar className="text-blue-600" size={20}/><input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"/></div>
                         </div>
-                        
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse border rounded-lg bg-white shadow-sm">
                             <thead>
@@ -1025,17 +907,13 @@
                                     <td className="p-3 text-gray-600 align-top">{tx.date}</td>
                                     <td className="p-3 align-top">
                                       <ul className="space-y-1">
-                                        {tx.items.map((item, idx) => (
-                                          <li key={idx}><span className="font-semibold">{item.qty}x</span> {item.name} {item.selectedExtras?.length > 0 && <span className="text-xs text-gray-400">({item.selectedExtras.map(e=>e.name).join(', ')})</span>}</li>
-                                        ))}
+                                        {tx.items.map((item, idx) => (<li key={idx}><span className="font-semibold">{item.qty}x</span> {item.name} {item.selectedExtras?.length > 0 && <span className="text-xs text-gray-400">({item.selectedExtras.map(e=>e.name).join(', ')})</span>}</li>))}
                                       </ul>
                                       {tx.discountAmount > 0 && <span className="text-xs font-bold text-orange-500 block mt-1">Diskon: -Rp {tx.discountAmount.toLocaleString()}</span>}
                                     </td>
                                     <td className="p-3 text-center align-top"><span className={`px-2 py-1 rounded-md text-xs font-bold ${tx.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{tx.paymentMethod.toUpperCase()}</span></td>
                                     <td className="p-3 text-right font-bold text-gray-800 align-top">Rp {tx.total.toLocaleString()}</td>
-                                    <td className="p-3 text-center align-top">
-                                      <button onClick={() => handleCancelTransaction(tx.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition-colors active:scale-95" title="Batalkan Transaksi"><Icons.Trash size={16}/></button>
-                                    </td>
+                                    <td className="p-3 text-center align-top"><button onClick={() => handleCancelTransaction(tx.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition-colors active:scale-95" title="Batalkan Transaksi"><Icons.Trash size={16}/></button></td>
                                   </tr>
                                 ))
                               )}
@@ -1141,6 +1019,14 @@
                               </div>
                            ))}
                         </div>
+                        
+                        <div className="mt-10 border-t pt-6">
+                           <h4 className="font-bold text-gray-800 mb-2 text-red-600 flex items-center"><Icons.Layers size={18} className="mr-2"/> Pemulihan Data Darurat</h4>
+                           <p className="text-sm text-gray-500 mb-4">Gunakan fitur ini untuk memuat ulang 26 data barang dari CSV lama Anda (Mie Goreng, Kopi, Snack, dll) ke dalam Database Firebase.</p>
+                           <button onClick={handleRestoreDataCSV} className="w-full md:w-auto bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 font-bold py-3 px-6 rounded-xl transition-colors active:scale-95 shadow-sm">
+                             📥 Pulihkan Data CSV Lama (26 Barang)
+                           </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1148,227 +1034,238 @@
               )}
 
               {adminTab === 'products' && (
-                <>
-                  <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
-                    {/* Sub-Navigasi Produk */}
-                    <div className="w-full md:w-64 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-                      <button onClick={() => setProductSubTab('barang')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'barang' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.List className="mr-3" size={20}/> Daftar Barang</button>
-                      <button onClick={() => setProductSubTab('kategori')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'kategori' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Tags className="mr-3" size={20}/> Kategori</button>
-                      <button onClick={() => setProductSubTab('ekstra')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'ekstra' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Layers className="mr-3" size={20}/> Ekstra & Topping</button>
-                      <button onClick={() => setProductSubTab('diskon')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'diskon' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Percent className="mr-3" size={20}/> Diskon Promo</button>
-                      <button onClick={() => setProductSubTab('stok')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'stok' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Package className="mr-3" size={20}/> Edit Stok</button>
-                      <button onClick={() => setProductSubTab('opname')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'opname' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Receipt className="mr-3" size={20}/> Stok Opname</button>
-                    </div>
-
-                    <div className="flex-1 bg-white p-6 rounded-2xl shadow-sm border min-h-[400px]">
-                      {productSubTab === 'barang' && (
-                        <div>
-                          <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-800">Daftar Barang</h3>
-                            <button onClick={openAddProductModal} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Tambah Baru</button>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                              <thead>
-                                <tr className="bg-gray-50 border-b">
-                                  <th className="p-3 text-sm font-semibold text-gray-600">Nama Produk</th>
-                                  <th className="p-3 text-sm font-semibold text-gray-600">Kategori</th>
-                                  <th className="p-3 text-sm font-semibold text-gray-600">Harga Jual</th>
-                                  <th className="p-3 text-sm font-semibold text-gray-600">Aksi</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {products.map(p => (
-                                  <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
-                                    <td className="p-3 font-semibold text-gray-800">{p.name}</td>
-                                    <td className="p-3 text-sm text-gray-500"><span className="bg-gray-200 px-2 py-1 rounded-md">{p.category || 'Umum'}</span></td>
-                                    <td className="p-3 text-sm text-blue-600 font-bold">Rp {p.price.toLocaleString()}</td>
-                                    <td className="p-3 text-sm">
-                                      <button onClick={() => openEditProductModal(p)} className="text-blue-500 hover:underline mr-3 font-semibold">Edit</button>
-                                      <button onClick={() => handleDeleteProduct(p.id)} className="text-red-500 hover:underline font-semibold">Hapus</button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {productSubTab === 'kategori' && (
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-800 mb-4">Manajemen Kategori</h3>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div onClick={handleAddCategory} className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 cursor-pointer transition-colors bg-gray-50 h-24 active:scale-95"><Icons.Plus size={24} className="mb-1"/><span className="text-sm font-bold">Buat Kategori</span></div>
-                            {categories.map((cat, idx) => (
-                              <div key={idx} className="bg-white border rounded-xl p-4 flex flex-col items-center justify-center relative h-24 shadow-sm hover:shadow-md transition-shadow"><span className="font-bold text-gray-700 text-center">{cat}</span>{cat !== 'Umum' && (<button onClick={() => handleDeleteCategory(cat)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-full active:scale-95" title="Hapus Kategori"><Icons.X size={14}/></button>)}</div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* --- TAB EKSTRA --- */}
-                      {productSubTab === 'ekstra' && (
-                        <div>
-                          <div className="flex justify-between items-center mb-6">
-                            <div>
-                              <h3 className="text-xl font-bold text-gray-800">Opsi Ekstra & Topping</h3>
-                              <p className="text-sm text-gray-500">Pilihan tambahan yang bisa ditambahkan kasir saat menjual barang.</p>
-                            </div>
-                            <button onClick={() => { setEditingExtra(null); setExtraForm({name:'', price:''}); setIsExtraModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Tambah Opsi</button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {extras.length === 0 ? <p className="text-gray-400 text-sm">Belum ada pilihan ekstra. Klik tombol tambah untuk membuat baru.</p> : extras.map(ex => (
-                              <div key={ex.id} className="p-4 border rounded-xl shadow-sm flex justify-between items-center bg-white">
-                                <div>
-                                  <p className="font-bold text-gray-800">{ex.name}</p>
-                                  <p className="text-sm text-blue-600 font-semibold">+ Rp {ex.price.toLocaleString()}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={() => { setEditingExtra(ex.id); setExtraForm({name: ex.name, price: ex.price}); setIsExtraModalOpen(true); }} className="text-gray-400 hover:text-blue-600 bg-gray-50 p-2 rounded border active:scale-95 transition-all"><Icons.Edit size={16} /></button>
-                                  <button onClick={() => handleDeleteExtra(ex.id)} className="text-gray-400 hover:text-red-600 bg-red-50 p-2 rounded border active:scale-95 transition-all"><Icons.X size={16} /></button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* --- TAB DISKON --- */}
-                      {productSubTab === 'diskon' && (
-                        <div>
-                          <div className="flex justify-between items-center mb-6">
-                            <div>
-                              <h3 className="text-xl font-bold text-gray-800">Manajemen Promo & Diskon</h3>
-                              <p className="text-sm text-gray-500">Diskon ini bisa dipilih kasir untuk memotong total tagihan belanja.</p>
-                            </div>
-                            <button onClick={() => { setEditingDiscount(null); setDiscountForm({name:'', type:'percentage', value:''}); setIsDiscountModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Buat Promo</button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {discounts.length === 0 ? <p className="text-gray-400 text-sm">Belum ada diskon aktif.</p> : discounts.map(d => (
-                              <div key={d.id} className="p-4 border rounded-xl shadow-sm flex justify-between items-center bg-white">
-                                <div>
-                                  <p className="font-bold text-gray-800 flex items-center"><Icons.Percent size={14} className="mr-1 text-orange-500"/> {d.name}</p>
-                                  <p className="text-sm text-orange-600 font-semibold mt-1">Potongan: {d.type === 'percentage' ? `${d.value}% dari total` : `Rp ${d.value.toLocaleString()}`}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={() => { setEditingDiscount(d.id); setDiscountForm({name: d.name, type: d.type, value: d.value}); setIsDiscountModalOpen(true); }} className="text-gray-400 hover:text-blue-600 bg-gray-50 p-2 rounded border active:scale-95 transition-all"><Icons.Edit size={16} /></button>
-                                  <button onClick={() => handleDeleteDiscount(d.id)} className="text-gray-400 hover:text-red-600 bg-red-50 p-2 rounded border active:scale-95 transition-all"><Icons.X size={16} /></button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {productSubTab === 'stok' && (
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-800 mb-6">Penyesuaian Stok Cepat</h3>
-                          <div className="space-y-4">
-                            {products.map(p => (
-                              <div key={p.id} className="flex justify-between items-center p-4 border rounded-xl hover:shadow-sm transition-shadow">
-                                <div><h4 className="font-bold text-gray-800 text-lg">{p.name}</h4><p className="text-sm text-gray-500">Harga Jual: Rp {p.price.toLocaleString()}</p></div>
-                                <div className="flex items-center gap-4">
-                                  <span className={`font-bold px-3 py-1 rounded-full text-sm ${p.isUnlimited ? 'bg-purple-100 text-purple-700' : (p.stock < 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700')}`}>{p.isUnlimited ? 'Titipan / ∞' : `Sisa: ${p.stock}`}</span>
-                                  {!p.isUnlimited && (
-                                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                                      <button onClick={() => updateStock(p.id, -1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-red-600 active:scale-95"><Icons.Minus size={18}/></button>
-                                      <span className="w-12 text-center font-bold">{p.stock}</span>
-                                      <button onClick={() => updateStock(p.id, 1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-green-600 active:scale-95"><Icons.Plus size={18}/></button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {productSubTab === 'opname' && (
-                        <div>
-                          <div className="flex justify-between items-center mb-6">
-                            <div><h3 className="text-xl font-bold text-gray-800">Laporan Stok Opname</h3><p className="text-sm text-gray-500">Rekapitulasi nilai aset dan stok barang saat ini.</p></div>
-                            <button onClick={exportToCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Download size={16} className="mr-2"/> Download Excel</button>
-                          </div>
-                          <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-6 flex justify-between items-center shadow-sm"><span className="font-bold text-green-800">Total Nilai Aset (Modal Barang Tersisa):</span><span className="text-2xl font-bold text-green-700">Rp {products.reduce((sum, p) => sum + (p.isUnlimited ? 0 : p.stock * p.cost), 0).toLocaleString()}</span></div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse border rounded-lg bg-white shadow-sm">
-                              <thead><tr className="bg-gray-100 border-b"><th className="p-3 text-sm font-semibold text-gray-600">Nama Barang</th><th className="p-3 text-sm font-semibold text-gray-600">Sisa Stok</th><th className="p-3 text-sm font-semibold text-gray-600">Nilai Per Item (Modal)</th><th className="p-3 text-sm font-semibold text-gray-600 text-right">Total Nilai Aset</th></tr></thead>
-                              <tbody>{products.map(p => (<tr key={p.id} className="border-b hover:bg-gray-50"><td className="p-3 font-semibold text-gray-800">{p.name}</td><td className="p-3 text-sm text-gray-700 font-bold bg-gray-50 text-center w-24">{p.isUnlimited ? '∞' : p.stock}</td><td className="p-3 text-sm text-gray-500">Rp {p.cost.toLocaleString()}</td><td className="p-3 text-sm font-bold text-green-700 text-right">Rp {(p.isUnlimited ? 0 : p.stock * p.cost).toLocaleString()}</td></tr>))}</tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
+                  {/* Sub-Navigasi Produk dengan gaya geser mendatar di mobile */}
+                  <div className="w-full md:w-64 flex flex-row md:flex-col gap-2 shrink-0 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                    <button onClick={() => setProductSubTab('barang')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'barang' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.List className="mr-3" size={20}/> Daftar Barang</button>
+                    <button onClick={() => setProductSubTab('kategori')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'kategori' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Tags className="mr-3" size={20}/> Kategori</button>
+                    <button onClick={() => setProductSubTab('ekstra')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'ekstra' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Layers className="mr-3" size={20}/> Ekstra & Topping</button>
+                    <button onClick={() => setProductSubTab('diskon')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'diskon' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Percent className="mr-3" size={20}/> Diskon Promo</button>
+                    <button onClick={() => setProductSubTab('stok')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'stok' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Package className="mr-3" size={20}/> Edit Stok</button>
+                    <button onClick={() => setProductSubTab('opname')} className={`p-3 md:p-4 rounded-xl text-left font-bold flex items-center transition-all whitespace-nowrap ${productSubTab === 'opname' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-blue-50 border'}`}><Icons.Receipt className="mr-3" size={20}/> Stok Opname</button>
                   </div>
 
-                  {/* MODALS ADMIN... */}
-                  {isProductModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-                        <div className="flex justify-between items-center p-4 border-b bg-gray-50">
-                          <h3 className="font-bold text-lg text-gray-800">{editingProduct ? 'Edit Barang' : 'Tambah Barang Baru'}</h3>
-                          <button onClick={() => setIsProductModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                  <div className="flex-1 bg-white p-6 rounded-2xl shadow-sm border min-h-[400px]">
+                    {productSubTab === 'barang' && (
+                      <div>
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-bold text-gray-800">Daftar Barang</h3>
+                          <button onClick={openAddProductModal} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Tambah Baru</button>
                         </div>
-                        <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
-                          <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Barang</label><input type="text" required value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Es Teh Manis" /></div>
-                          
-                          <div className="flex items-center p-3 bg-purple-50 rounded-xl border border-purple-100">
-                             <input type="checkbox" id="isUnlimited" checked={productForm.isUnlimited} onChange={e => setProductForm({...productForm, isUnlimited: e.target.checked, stock: e.target.checked ? '' : productForm.stock})} className="w-5 h-5 text-purple-600 rounded mr-3"/>
-                             <label htmlFor="isUnlimited" className="text-sm font-bold text-purple-800 cursor-pointer">Barang Titipan (Stok Tak Terbatas)</label>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Kategori</label><select value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 bg-white">{categories.map((cat, idx) => (<option key={idx} value={cat}>{cat}</option>))}</select></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Stok Awal</label><input type="number" required={!productForm.isUnlimited} disabled={productForm.isUnlimited} min="0" value={productForm.isUnlimited ? '' : productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} className={`w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 ${productForm.isUnlimited ? 'bg-gray-100 cursor-not-allowed' : ''}`} placeholder={productForm.isUnlimited ? "Tak Terbatas" : "0"}/></div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Modal (Rp)</label><input type="number" required min="0" value={productForm.cost} onChange={e => setProductForm({...productForm, cost: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Jual (Rp)</label><input type="number" required min="0" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
-                          </div>
-                          <div className="pt-4 mt-2 flex justify-end gap-3"><button type="button" onClick={() => setIsProductModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Barang</button></div>
-                        </form>
-                      </div>
-                    </div>
-                  )}
-
-                  {isExtraModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-                        <div className="flex justify-between items-center p-4 border-b bg-gray-50">
-                          <h3 className="font-bold text-lg text-gray-800">{editingExtra ? 'Edit Ekstra' : 'Tambah Opsi Ekstra'}</h3>
-                          <button onClick={() => setIsExtraModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-gray-50 border-b">
+                                <th className="p-3 text-sm font-semibold text-gray-600">Nama Produk</th>
+                                <th className="p-3 text-sm font-semibold text-gray-600">Kategori</th>
+                                <th className="p-3 text-sm font-semibold text-gray-600">Harga Jual</th>
+                                <th className="p-3 text-sm font-semibold text-gray-600">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {products.map(p => (
+                                <tr key={p.id} className="border-b hover:bg-gray-50 transition-colors">
+                                  <td className="p-3 font-semibold text-gray-800">{p.name}</td>
+                                  <td className="p-3 text-sm text-gray-500"><span className="bg-gray-200 px-2 py-1 rounded-md">{p.category || 'Umum'}</span></td>
+                                  <td className="p-3 text-sm text-blue-600 font-bold">Rp {p.price.toLocaleString()}</td>
+                                  <td className="p-3 text-sm">
+                                    <button onClick={() => openEditProductModal(p)} className="text-blue-500 hover:underline mr-3 font-semibold">Edit</button>
+                                    <button onClick={() => handleDeleteProduct(p.id)} className="text-red-500 hover:underline font-semibold">Hapus</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <form onSubmit={handleSaveExtra} className="p-6 space-y-4">
-                          <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Opsi</label><input autoFocus type="text" required value={extraForm.name} onChange={e => setExtraForm({...extraForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Tambah Susu Kental" /></div>
-                          <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Tambahan (Rp)</label><input type="number" required min="0" value={extraForm.price} onChange={e => setExtraForm({...extraForm, price: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Misal: 3000"/></div>
-                          <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsExtraModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Opsi</button></div>
-                        </form>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {isDiscountModalOpen && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-                        <div className="flex justify-between items-center p-4 border-b bg-gray-50">
-                          <h3 className="font-bold text-lg text-gray-800">{editingDiscount ? 'Edit Promo/Diskon' : 'Buat Promo Baru'}</h3>
-                          <button onClick={() => setIsDiscountModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                    {productSubTab === 'kategori' && (
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Manajemen Kategori</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div onClick={handleAddCategory} className="border-2 border-dashed border-gray-300 rounded-xl p-4 flex flex-col items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 cursor-pointer transition-colors bg-gray-50 h-24 active:scale-95"><Icons.Plus size={24} className="mb-1"/><span className="text-sm font-bold">Buat Kategori</span></div>
+                          {categories.map((cat, idx) => (
+                            <div key={idx} className="bg-white border rounded-xl p-4 flex flex-col items-center justify-center relative h-24 shadow-sm hover:shadow-md transition-shadow"><span className="font-bold text-gray-700 text-center">{cat}</span>{cat !== 'Umum' && (<button onClick={() => handleDeleteCategory(cat)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 bg-red-50 p-1 rounded-full active:scale-95" title="Hapus Kategori"><Icons.X size={14}/></button>)}</div>
+                          ))}
                         </div>
-                        <form onSubmit={handleSaveDiscount} className="p-6 space-y-4">
-                          <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Promo</label><input autoFocus type="text" required value={discountForm.name} onChange={e => setDiscountForm({...discountForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Diskon Mahasiswa" /></div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Jenis Diskon</label><select value={discountForm.type} onChange={e => setDiscountForm({...discountForm, type: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 bg-white"><option value="percentage">Persentase (%)</option><option value="nominal">Nominal (Rp)</option></select></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Nilai Potongan</label><input type="number" required min="1" max={discountForm.type === 'percentage' ? 100 : undefined} value={discountForm.value} onChange={e => setDiscountForm({...discountForm, value: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder={discountForm.type === 'percentage' ? "Maks 100" : "Rp"}/></div>
-                          </div>
-                          <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsDiscountModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Promo</button></div>
-                        </form>
                       </div>
-                    </div>
-                  )}
-                </>
+                    )}
+
+                    {productSubTab === 'ekstra' && (
+                      <div>
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-800">Opsi Ekstra & Topping</h3>
+                            <p className="text-sm text-gray-500">Pilihan tambahan yang bisa ditambahkan kasir saat menjual barang.</p>
+                          </div>
+                          <button onClick={() => { setEditingExtra(null); setExtraForm({name:'', price:''}); setIsExtraModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Tambah Opsi</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {extras.length === 0 ? <p className="text-gray-400 text-sm">Belum ada pilihan ekstra. Klik tombol tambah untuk membuat baru.</p> : extras.map(ex => (
+                            <div key={ex.id} className="p-4 border rounded-xl shadow-sm flex justify-between items-center bg-white">
+                              <div>
+                                <p className="font-bold text-gray-800">{ex.name}</p>
+                                <p className="text-sm text-blue-600 font-semibold">+ Rp {ex.price.toLocaleString()}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => { setEditingExtra(ex.id); setExtraForm({name: ex.name, price: ex.price}); setIsExtraModalOpen(true); }} className="text-gray-400 hover:text-blue-600 bg-gray-50 p-2 rounded border active:scale-95 transition-all"><Icons.Edit size={16} /></button>
+                                <button onClick={() => handleDeleteExtra(ex.id)} className="text-gray-400 hover:text-red-600 bg-red-50 p-2 rounded border active:scale-95 transition-all"><Icons.X size={16} /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {productSubTab === 'diskon' && (
+                      <div>
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-800">Manajemen Promo & Diskon</h3>
+                            <p className="text-sm text-gray-500">Diskon ini bisa dipilih kasir untuk memotong total tagihan belanja.</p>
+                          </div>
+                          <button onClick={() => { setEditingDiscount(null); setDiscountForm({name:'', type:'percentage', value:''}); setIsDiscountModalOpen(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Plus size={16} className="mr-1"/> Buat Promo</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {discounts.length === 0 ? <p className="text-gray-400 text-sm">Belum ada diskon aktif.</p> : discounts.map(d => (
+                            <div key={d.id} className="p-4 border rounded-xl shadow-sm flex justify-between items-center bg-white">
+                              <div>
+                                <p className="font-bold text-gray-800 flex items-center"><Icons.Percent size={14} className="mr-1 text-orange-500"/> {d.name}</p>
+                                <p className="text-sm text-orange-600 font-semibold mt-1">Potongan: {d.type === 'percentage' ? `${d.value}% dari total` : `Rp ${d.value.toLocaleString()}`}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => { setEditingDiscount(d.id); setDiscountForm({name: d.name, type: d.type, value: d.value}); setIsDiscountModalOpen(true); }} className="text-gray-400 hover:text-blue-600 bg-gray-50 p-2 rounded border active:scale-95 transition-all"><Icons.Edit size={16} /></button>
+                                <button onClick={() => handleDeleteDiscount(d.id)} className="text-gray-400 hover:text-red-600 bg-red-50 p-2 rounded border active:scale-95 transition-all"><Icons.X size={16} /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {productSubTab === 'stok' && (
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-6">Penyesuaian Stok Cepat</h3>
+                        <div className="space-y-4">
+                          {products.map(p => (
+                            <div key={p.id} className="flex justify-between items-center p-4 border rounded-xl hover:shadow-sm transition-shadow">
+                              <div><h4 className="font-bold text-gray-800 text-lg">{p.name}</h4><p className="text-sm text-gray-500">Harga Jual: Rp {p.price.toLocaleString()}</p></div>
+                              <div className="flex items-center gap-4">
+                                <span className={`font-bold px-3 py-1 rounded-full text-sm ${p.isUnlimited ? 'bg-purple-100 text-purple-700' : (p.stock < 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700')}`}>{p.isUnlimited ? 'Titipan / ∞' : `Sisa: ${p.stock}`}</span>
+                                {!p.isUnlimited && (
+                                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                                    <button onClick={() => updateStock(p.id, -1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-red-600 active:scale-95"><Icons.Minus size={18}/></button>
+                                    <span className="w-12 text-center font-bold">{p.stock}</span>
+                                    <button onClick={() => updateStock(p.id, 1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-green-600 active:scale-95"><Icons.Plus size={18}/></button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {productSubTab === 'opname' && (
+                      <div>
+                        <div className="flex justify-between items-center mb-6">
+                          <div><h3 className="text-xl font-bold text-gray-800">Laporan Stok Opname</h3><p className="text-sm text-gray-500">Rekapitulasi nilai aset dan stok barang saat ini.</p></div>
+                          <button onClick={exportToCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Download size={16} className="mr-2"/> Download Excel</button>
+                        </div>
+                        <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-6 flex justify-between items-center shadow-sm"><span className="font-bold text-green-800">Total Nilai Aset (Modal Barang Tersisa):</span><span className="text-2xl font-bold text-green-700">Rp {products.reduce((sum, p) => sum + (p.isUnlimited ? 0 : p.stock * p.cost), 0).toLocaleString()}</span></div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse border rounded-lg bg-white shadow-sm">
+                            <thead><tr className="bg-gray-100 border-b"><th className="p-3 text-sm font-semibold text-gray-600">Nama Barang</th><th className="p-3 text-sm font-semibold text-gray-600">Sisa Stok</th><th className="p-3 text-sm font-semibold text-gray-600">Nilai Per Item (Modal)</th><th className="p-3 text-sm font-semibold text-gray-600 text-right">Total Nilai Aset</th></tr></thead>
+                            <tbody>{products.map(p => (<tr key={p.id} className="border-b hover:bg-gray-50"><td className="p-3 font-semibold text-gray-800">{p.name}</td><td className="p-3 text-sm text-gray-700 font-bold bg-gray-50 text-center w-24">{p.isUnlimited ? '∞' : p.stock}</td><td className="p-3 text-sm text-gray-500">Rp {p.cost.toLocaleString()}</td><td className="p-3 text-sm font-bold text-green-700 text-right">Rp {(p.isUnlimited ? 0 : p.stock * p.cost).toLocaleString()}</td></tr>))}</tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
+
+            {/* --- ADMIN MODALS RENDERED SAFELY AT THE END OF THE CONTAINER --- */}
+            {isProductModalOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+                  <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800">{editingProduct ? 'Edit Barang' : 'Tambah Barang Baru'}</h3>
+                    <button onClick={() => setIsProductModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Barang</label><input type="text" required value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Es Teh Manis" /></div>
+                    <div className="flex items-center p-3 bg-purple-50 rounded-xl border border-purple-100">
+                        <input type="checkbox" id="isUnlimited" checked={productForm.isUnlimited} onChange={e => setProductForm({...productForm, isUnlimited: e.target.checked, stock: e.target.checked ? '' : productForm.stock})} className="w-5 h-5 text-purple-600 rounded mr-3"/>
+                        <label htmlFor="isUnlimited" className="text-sm font-bold text-purple-800 cursor-pointer">Barang Titipan (Stok Tak Terbatas)</label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Kategori</label><select value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 bg-white">{categories.map((cat, idx) => (<option key={idx} value={cat}>{cat}</option>))}</select></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Stok Awal</label><input type="number" required={!productForm.isUnlimited} disabled={productForm.isUnlimited} min="0" value={productForm.isUnlimited ? '' : productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} className={`w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 ${productForm.isUnlimited ? 'bg-gray-100 cursor-not-allowed' : ''}`} placeholder={productForm.isUnlimited ? "Tak Terbatas" : "0"}/></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Modal (Rp)</label><input type="number" required min="0" value={productForm.cost} onChange={e => setProductForm({...productForm, cost: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Jual (Rp)</label><input type="number" required min="0" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
+                    </div>
+                    <div className="pt-4 mt-2 flex justify-end gap-3"><button type="button" onClick={() => setIsProductModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Barang</button></div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {isExtraModalOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+                  <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800">{editingExtra ? 'Edit Ekstra' : 'Tambah Opsi Ekstra'}</h3>
+                    <button onClick={() => setIsExtraModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleSaveExtra} className="p-6 space-y-4">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Opsi</label><input autoFocus type="text" required value={extraForm.name} onChange={e => setExtraForm({...extraForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Tambah Susu Kental" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Tambahan (Rp)</label><input type="number" required min="0" value={extraForm.price} onChange={e => setExtraForm({...extraForm, price: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Misal: 3000"/></div>
+                    <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsExtraModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Opsi</button></div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {isDiscountModalOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+                  <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800">{editingDiscount ? 'Edit Promo/Diskon' : 'Buat Promo Baru'}</h3>
+                    <button onClick={() => setIsDiscountModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleSaveDiscount} className="p-6 space-y-4">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Promo</label><input autoFocus type="text" required value={discountForm.name} onChange={e => setDiscountForm({...discountForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Diskon Mahasiswa" /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Jenis Diskon</label><select value={discountForm.type} onChange={e => setDiscountForm({...discountForm, type: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 bg-white"><option value="percentage">Persentase (%)</option><option value="nominal">Nominal (Rp)</option></select></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nilai Potongan</label><input type="number" required min="1" max={discountForm.type === 'percentage' ? 100 : undefined} value={discountForm.value} onChange={e => setDiscountForm({...discountForm, value: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder={discountForm.type === 'percentage' ? "Maks 100" : "Rp"}/></div>
+                    </div>
+                    <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsDiscountModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Promo</button></div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {isInvestorModalOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+                  <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                    <h3 className="font-bold text-lg text-gray-800">{editingInvestor ? 'Edit Investor' : 'Tambah Investor Baru'}</h3>
+                    <button onClick={() => setIsInvestorModalOpen(false)} className="text-gray-400 hover:text-red-500"><Icons.X size={20}/></button>
+                  </div>
+                  <form onSubmit={handleSaveInvestor} className="p-6 space-y-4">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Investor</label><input autoFocus type="text" required value={investorForm.name} onChange={e => setInvestorForm({...investorForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Pak Budi" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Persentase Bagi Hasil (%)</label><input type="number" required min="1" max="100" value={investorForm.sharePct} onChange={e => setInvestorForm({...investorForm, sharePct: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Misal: 30" /></div>
+                    <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsInvestorModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan</button></div>
+                  </form>
+                </div>
+              </div>
+            )}
+
             {renderDialog()}
           </div>
         );
