@@ -65,7 +65,8 @@
       Percent: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>,
       Layers: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>,
       Clock: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-      Trash: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      Trash: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+      Search: ({size=24, className=""}) => <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
     };
 
     const App = () => {
@@ -105,6 +106,7 @@
       const [expenseInput, setExpenseInput] = useState({ desc: '', amount: '' });
       const [cashierTab, setCashierTab] = useState('transaction'); 
       const [activeDiscount, setActiveDiscount] = useState(null);
+      const [searchQuery, setSearchQuery] = useState(''); // State Pencarian Kasir
 
       // Admin State
       const [adminTab, setAdminTab] = useState('finance'); 
@@ -410,7 +412,7 @@
             updateDB('modalAwal', 0);
             updateDB('cashierName', '');
             updateDB('expenses', []);
-            setCart([]); setActiveDiscount(null); setCashierTab('transaction'); setView('login');
+            setCart([]); setActiveDiscount(null); setCashierTab('transaction'); setSearchQuery(''); setView('login');
           }
         });
       };
@@ -618,10 +620,30 @@
             <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-24 md:pb-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">Menu Penjualan</h2>
-                <button onClick={() => setView('login')} className="flex items-center text-red-500 font-semibold p-2 bg-red-50 rounded-lg transition-colors hover:bg-red-100"><Icons.LogOut size={20} className="mr-2" /> Keluar</button>
+                <button onClick={() => { setView('login'); setSearchQuery(''); }} className="flex items-center text-red-500 font-semibold p-2 bg-red-50 rounded-lg transition-colors hover:bg-red-100"><Icons.LogOut size={20} className="mr-2" /> Keluar</button>
               </div>
+
+              {/* --- KOLOM PENCARIAN KASIR --- */}
+              <div className="mb-6 relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Icons.Search className="text-gray-400" size={20} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cari nama barang..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors font-semibold shadow-sm"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600">
+                    <Icons.X size={18}/>
+                  </button>
+                )}
+              </div>
+              
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map(p => (
+                {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
                   <div key={p.id} onClick={() => handleProductClick(p)} className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer active:scale-95 transition-transform ${p.isUnlimited || p.stock > 0 ? 'border-transparent hover:border-blue-500' : 'border-red-200 opacity-60'}`}>
                     <div className="bg-blue-50 w-12 h-12 rounded-lg flex items-center justify-center text-blue-600 mb-3"><Icons.Package size={24} /></div>
                     <h3 className="font-bold text-gray-800 mb-1">{p.name}</h3>
@@ -629,6 +651,11 @@
                     <p className={`text-xs font-bold ${p.isUnlimited ? 'text-purple-600' : 'text-gray-500'}`}>Stok: {p.isUnlimited ? '∞ (Titipan)' : p.stock}</p>
                   </div>
                 ))}
+                {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                  <div className="col-span-full text-center py-8 text-gray-400">
+                    <p>Barang "{searchQuery}" tidak ditemukan.</p>
+                  </div>
+                )}
               </div>
             </div>
 
