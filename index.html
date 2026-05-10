@@ -116,7 +116,7 @@
       // State Modals Admin
       const [isProductModalOpen, setIsProductModalOpen] = useState(false);
       const [editingProduct, setEditingProduct] = useState(null);
-      const [productForm, setProductForm] = useState({ name: '', category: 'Umum', cost: '', price: '', stock: '' });
+      const [productForm, setProductForm] = useState({ name: '', category: 'Umum', cost: '', price: '', stock: '', isUnlimited: false });
 
       const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
       const [editingExtra, setEditingExtra] = useState(null);
@@ -237,7 +237,7 @@
 
       // --- LOGIC KASIR ---
       const handleProductClick = (product) => {
-        if (product.stock <= 0) {
+        if (!product.isUnlimited && product.stock <= 0) {
           setDialog({ type: 'alert', title: 'Stok Habis', message: 'Maaf, stok barang ini sudah habis!' });
           return;
         }
@@ -270,7 +270,7 @@
         // Hitung total stok yang sudah ada di cart untuk produk ini
         const qtyInCart = cart.filter(item => item.id === product.id).reduce((sum, item) => sum + item.qty, 0);
 
-        if (qtyInCart >= product.stock) {
+        if (!product.isUnlimited && qtyInCart >= product.stock) {
           setDialog({ type: 'alert', title: 'Stok Terbatas', message: `Maksimal stok yang bisa dibeli adalah ${product.stock}.` });
           return;
         }
@@ -329,6 +329,7 @@
         }
 
         const updatedProducts = products.map(p => {
+          if (p.isUnlimited) return p; // Jangan kurangi stok jika barang titipan
           const qtyInCart = cart.filter(c => c.id === p.id).reduce((sum, c) => sum + c.qty, 0);
           return qtyInCart > 0 ? { ...p, stock: p.stock - qtyInCart } : p;
         });
@@ -419,13 +420,13 @@
       // --- LOGIC ADMIN MANAJEMEN BARANG & EKSTRA & DISKON ---
       const openAddProductModal = () => {
         setEditingProduct(null);
-        setProductForm({ name: '', category: 'Umum', cost: '', price: '', stock: '' });
+        setProductForm({ name: '', category: 'Umum', cost: '', price: '', stock: '', isUnlimited: false });
         setIsProductModalOpen(true);
       };
 
       const openEditProductModal = (product) => {
         setEditingProduct(product.id);
-        setProductForm({ ...product });
+        setProductForm({ ...product, isUnlimited: product.isUnlimited || false });
         setIsProductModalOpen(true);
       };
 
@@ -433,7 +434,7 @@
         e.preventDefault();
         const parsedCost = Number(productForm.cost);
         const parsedPrice = Number(productForm.price);
-        const parsedStock = Number(productForm.stock);
+        const parsedStock = productForm.isUnlimited ? 0 : Number(productForm.stock);
 
         if (editingProduct) {
            setProducts(products.map(p => p.id === editingProduct ? { ...p, ...productForm, cost: parsedCost, price: parsedPrice, stock: parsedStock } : p));
@@ -549,7 +550,7 @@
 
       const exportToCSV = () => {
         const headers = ['ID,Nama Barang,Kategori,Sisa Stok,Harga Modal,Harga Jual,Total Nilai Aset'];
-        const rows = products.map(p => `${p.id},"${p.name}","${p.category || 'Umum'}",${p.stock},${p.cost},${p.price},${p.stock * p.cost}`);
+        const rows = products.map(p => `${p.id},"${p.name}","${p.category || 'Umum'}",${p.isUnlimited ? '"Tak Terbatas"' : p.stock},${p.cost},${p.price},${p.isUnlimited ? 0 : p.stock * p.cost}`);
         const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -656,11 +657,11 @@
               
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map(p => (
-                  <div key={p.id} onClick={() => handleProductClick(p)} className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer active:scale-95 transition-transform ${p.stock > 0 ? 'border-transparent hover:border-blue-500' : 'border-red-200 opacity-60'}`}>
+                  <div key={p.id} onClick={() => handleProductClick(p)} className={`bg-white p-4 rounded-xl shadow-sm border-2 cursor-pointer active:scale-95 transition-transform ${p.isUnlimited || p.stock > 0 ? 'border-transparent hover:border-blue-500' : 'border-red-200 opacity-60'}`}>
                     <div className="bg-blue-50 w-12 h-12 rounded-lg flex items-center justify-center text-blue-600 mb-3"><Icons.Package size={24} /></div>
                     <h3 className="font-bold text-gray-800 mb-1">{p.name}</h3>
                     <p className="text-blue-600 font-bold mb-2">Rp {p.price.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">Stok: {p.stock}</p>
+                    <p className={`text-xs font-bold ${p.isUnlimited ? 'text-purple-600' : 'text-gray-500'}`}>Stok: {p.isUnlimited ? '∞ (Titipan)' : p.stock}</p>
                   </div>
                 ))}
               </div>
@@ -1238,12 +1239,14 @@
                               <div key={p.id} className="flex justify-between items-center p-4 border rounded-xl hover:shadow-sm transition-shadow">
                                 <div><h4 className="font-bold text-gray-800 text-lg">{p.name}</h4><p className="text-sm text-gray-500">Harga Jual: Rp {p.price.toLocaleString()}</p></div>
                                 <div className="flex items-center gap-4">
-                                  <span className={`font-bold px-3 py-1 rounded-full text-sm ${p.stock < 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>Sisa: {p.stock}</span>
-                                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                                    <button onClick={() => updateStock(p.id, -1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-red-600 active:scale-95"><Icons.Minus size={18}/></button>
-                                    <span className="w-12 text-center font-bold">{p.stock}</span>
-                                    <button onClick={() => updateStock(p.id, 1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-green-600 active:scale-95"><Icons.Plus size={18}/></button>
-                                  </div>
+                                  <span className={`font-bold px-3 py-1 rounded-full text-sm ${p.isUnlimited ? 'bg-purple-100 text-purple-700' : (p.stock < 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700')}`}>{p.isUnlimited ? 'Titipan / ∞' : `Sisa: ${p.stock}`}</span>
+                                  {!p.isUnlimited && (
+                                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                                      <button onClick={() => updateStock(p.id, -1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-red-600 active:scale-95"><Icons.Minus size={18}/></button>
+                                      <span className="w-12 text-center font-bold">{p.stock}</span>
+                                      <button onClick={() => updateStock(p.id, 1)} className="p-2 bg-white rounded shadow-sm text-gray-600 hover:text-green-600 active:scale-95"><Icons.Plus size={18}/></button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1257,11 +1260,11 @@
                             <div><h3 className="text-xl font-bold text-gray-800">Laporan Stok Opname</h3><p className="text-sm text-gray-500">Rekapitulasi nilai aset dan stok barang saat ini.</p></div>
                             <button onClick={exportToCSV} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 flex items-center text-sm shadow-sm active:scale-95 transition-transform"><Icons.Download size={16} className="mr-2"/> Download Excel</button>
                           </div>
-                          <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-6 flex justify-between items-center shadow-sm"><span className="font-bold text-green-800">Total Nilai Aset (Modal Barang Tersisa):</span><span className="text-2xl font-bold text-green-700">Rp {products.reduce((sum, p) => sum + (p.stock * p.cost), 0).toLocaleString()}</span></div>
+                          <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-6 flex justify-between items-center shadow-sm"><span className="font-bold text-green-800">Total Nilai Aset (Modal Barang Tersisa):</span><span className="text-2xl font-bold text-green-700">Rp {products.reduce((sum, p) => sum + (p.isUnlimited ? 0 : p.stock * p.cost), 0).toLocaleString()}</span></div>
                           <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse border rounded-lg bg-white shadow-sm">
                               <thead><tr className="bg-gray-100 border-b"><th className="p-3 text-sm font-semibold text-gray-600">Nama Barang</th><th className="p-3 text-sm font-semibold text-gray-600">Sisa Stok</th><th className="p-3 text-sm font-semibold text-gray-600">Nilai Per Item (Modal)</th><th className="p-3 text-sm font-semibold text-gray-600 text-right">Total Nilai Aset</th></tr></thead>
-                              <tbody>{products.map(p => (<tr key={p.id} className="border-b hover:bg-gray-50"><td className="p-3 font-semibold text-gray-800">{p.name}</td><td className="p-3 text-sm text-gray-700 font-bold bg-gray-50 text-center w-24">{p.stock}</td><td className="p-3 text-sm text-gray-500">Rp {p.cost.toLocaleString()}</td><td className="p-3 text-sm font-bold text-green-700 text-right">Rp {(p.stock * p.cost).toLocaleString()}</td></tr>))}</tbody>
+                              <tbody>{products.map(p => (<tr key={p.id} className="border-b hover:bg-gray-50"><td className="p-3 font-semibold text-gray-800">{p.name}</td><td className="p-3 text-sm text-gray-700 font-bold bg-gray-50 text-center w-24">{p.isUnlimited ? '∞' : p.stock}</td><td className="p-3 text-sm text-gray-500">Rp {p.cost.toLocaleString()}</td><td className="p-3 text-sm font-bold text-green-700 text-right">Rp {(p.isUnlimited ? 0 : p.stock * p.cost).toLocaleString()}</td></tr>))}</tbody>
                             </table>
                           </div>
                         </div>
@@ -1279,15 +1282,21 @@
                         </div>
                         <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
                           <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Barang</label><input type="text" required value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="Contoh: Es Teh Manis" /></div>
+                          
+                          <div className="flex items-center p-3 bg-purple-50 rounded-xl border border-purple-100">
+                             <input type="checkbox" id="isUnlimited" checked={productForm.isUnlimited} onChange={e => setProductForm({...productForm, isUnlimited: e.target.checked, stock: e.target.checked ? '' : productForm.stock})} className="w-5 h-5 text-purple-600 rounded mr-3"/>
+                             <label htmlFor="isUnlimited" className="text-sm font-bold text-purple-800 cursor-pointer">Barang Titipan (Stok Tak Terbatas)</label>
+                          </div>
+
                           <div className="grid grid-cols-2 gap-4">
                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Kategori</label><select value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 bg-white">{categories.map((cat, idx) => (<option key={idx} value={cat}>{cat}</option>))}</select></div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Stok Awal</label><input type="number" required min="0" value={productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
+                            <div><label className="block text-sm font-bold text-gray-700 mb-1">Stok Awal</label><input type="number" required={!productForm.isUnlimited} disabled={productForm.isUnlimited} min="0" value={productForm.isUnlimited ? '' : productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} className={`w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 ${productForm.isUnlimited ? 'bg-gray-100 cursor-not-allowed' : ''}`} placeholder={productForm.isUnlimited ? "Tak Terbatas" : "0"}/></div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Modal (Rp)</label><input type="number" required min="0" value={productForm.cost} onChange={e => setProductForm({...productForm, cost: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Harga Jual (Rp)</label><input type="number" required min="0" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} className="w-full border-2 border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500" placeholder="0"/></div>
                           </div>
-                          <div className="pt-4 mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsProductModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Barang</button></div>
+                          <div className="pt-4 mt-2 flex justify-end gap-3"><button type="button" onClick={() => setIsProductModalOpen(false)} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl">Batal</button><button type="submit" className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Simpan Barang</button></div>
                         </form>
                       </div>
                     </div>
